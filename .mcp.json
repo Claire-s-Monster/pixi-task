@@ -1,0 +1,98 @@
+{
+  "mcpServers": {
+    "agent-cache": {
+      "type": "http",
+      "url": "http://127.0.0.1:4102/mcp",
+      "transport": "sse"
+    },
+    "agent-ecosystem": {
+      "type": "http",
+      "url": "http://127.0.0.1:4103/mcp",
+      "transport": "sse"
+    },
+    "claudecode-bash": {
+      "type": "http",
+      "url": "http://127.0.0.1:4104/mcp",
+      "transport": "sse"
+    },
+    "design-system": {
+      "type": "http",
+      "url": "http://127.0.0.1:4105/mcp",
+      "transport": "sse"
+    },
+    "git": {
+      "type": "http",
+      "url": "http://127.0.0.1:4100/mcp",
+      "transport": "sse"
+    },
+    "knowledge-bridge": {
+      "type": "http",
+      "url": "http://127.0.0.1:4003/mcp",
+      "transport": "sse"
+    },
+    "llm-cli-runner": {
+      "type": "http",
+      "url": "http://127.0.0.1:4110/mcp",
+      "transport": "sse"
+    },
+    "pixi-bash": {
+      "type": "http",
+      "url": "http://127.0.0.1:4101/mcp",
+      "transport": "sse"
+    },
+    "pytest-analyzer": {
+      "command": "pixi",
+      "args": [
+        "run",
+         "--manifest-path",
+        "/home/memento/ClaudeCode/Servers/pytest-analyzer/development",
+        "mcp-server",
+        "--project-root",
+        "/home/memento/ClaudeCode/Servers/pixi-shell/development"
+      ]
+    },
+    "quality-assurance": {
+      "type": "http",
+      "url": "http://127.0.0.1:4106/mcp",
+      "transport": "sse"
+    },
+    "resilience": {
+      "type": "http",
+      "url": "http://127.0.0.1:4107/mcp",
+      "transport": "sse"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "serena-lean": {
+      "command": "pixi",
+      "args": [
+        "run",
+        "--manifest-path",
+        "/home/memento/ClaudeCode/Servers/serena/development",
+        "lean-server",
+        "--repository",
+        "/home/memento/ClaudeCode/Servers/pixi-shell/development"
+      ]
+    },
+    "session-intelligence": {
+      "type": "http",
+      "url": "http://127.0.0.1:4002/mcp",
+      "transport": "sse"
+    },
+    "system-resource": {
+      "type": "http",
+      "url": "http://127.0.0.1:4108/mcp",
+      "transport": "sse"
+    },
+    "workflow": {
+      "type": "http",
+      "url": "http://127.0.0.1:4109/mcp",
+      "transport": "sse"
+    }
+  }
+}

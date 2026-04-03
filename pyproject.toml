@@ -1,0 +1,429 @@
+[project]
+name = "pixi-shell"
+version = "0.1.0"
+description = "A secure MCP server providing controlled access to pixi tasks and commands, eliminating agent bash circumvention"
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "MementoRC", email = "ci.framework.bot@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = []
+
+[project.scripts]
+pixi-shell-server = "pixi_shell.server:main"
+pixi-shell = "pixi_shell.server:main"
+pixi-shell-lean = "pixi_shell.lean_server:main"
+pixi-shell-lean-server = "pixi_shell.lean_server:main"
+pixi-shell-http = "pixi_shell.http_lean_server:main"
+pixi-shell-http-server = "pixi_shell.http_lean_server:main"
+
+# NOTE: Dependencies have been moved to [tool.pixi.*] sections below
+# This ensures PIXI-only dependency management compliance
+[project.optional-dependencies]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pixi_shell"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"  # Automatic async support
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--disable-warnings",
+    "--timeout=120",  # 2 minutes per test (CI Framework)
+    "--timeout-method=thread",  # More robust for async
+    "-ra",  # Show all test results
+]
+timeout = 120  # Default timeout for all tests
+timeout_method = "thread"
+markers = [
+    "unit: Unit tests (fast, <30s timeout)",
+    "integration: Integration tests (medium, <120s timeout)",
+    "e2e: End-to-end tests (slow, <300s timeout)",
+    "property: Property-based tests using hypothesis",
+    "performance: Performance benchmark tests",
+    "security: Security-focused tests",
+    "slow: Slow tests (extended timeout)",
+    "benchmark: Performance benchmark tests (no timeout)",
+    "requires_external: Tests requiring external services",
+    "requires_network: Tests requiring network access",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["pixi_shell"]
+package_root = ["src"]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+
+# Strictness settings (balanced approach)
+strict = false  # Start permissive, increase gradually
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+ignore_missing_imports = true  # Permissive for dependencies
+
+# Test directory override
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# External dependencies - ignore missing imports
+[[tool.mypy.overrides]]
+module = [
+    "hypothesis.*",
+    "pytest.*",
+    "ruff.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["S", "ARG", "FBT"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pixi_shell"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.coverage.run]
+source = ["src/pixi_shell"]  # Updated to match PIXI configuration
+branch = true
+parallel = true
+omit = [
+    "tests/*",
+    "src/pixi_shell/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false
+precision = 2
+fail_under = 88  # Set to current achieved coverage (88.24%) to prevent regression
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Pixi Shell Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.paths]
+source = [
+    "src/pixi_shell",
+    "*/src/pixi_shell"
+]
+
+# =============================================================================
+# PIXI PROJECT CONFIGURATION (Optimized Linux-64 Strategy)
+# =============================================================================
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["linux-64"]  # Linux-only for 50% faster local development
+                          # Use --platform flag in CI for cross-platform validation
+channel-priority = "disabled"  # Faster dependency resolution
+
+# Ensure proper environment isolation (CI Framework pattern)
+[tool.pixi.activation]
+env = { PYTHONNOUSERSITE = "1" }
+
+# =============================================================================
+# CORE RUNTIME DEPENDENCIES
+# =============================================================================
+[tool.pixi.dependencies]
+# Core Python and build system
+python = ">=3.12,<3.14"  # Pin range to avoid surprise updates (currently resolving to 3.13.5)
+pip = "*"  # Required for pixi-dependencies integration
+hatchling = ">=1.18.0"  # Required for editable installs
+fastmcp = "*"
+fastapi = ">=0.115.0"  # HTTP transport for MCP server
+uvicorn = ">=0.31.0"   # ASGI server for HTTP transport
+pydantic = ">=2.10"  # Data validation (required by FastMCP)
+
+[tool.pixi.pypi-dependencies]
+# Install project in editable mode
+pixi-shell = { path = ".", editable = true }
+# Runtime dependencies for MCP server
+toml = ">=0.10.2"  # Required for pixi.toml parsing
+
+# =============================================================================
+# TIERED QUALITY FEATURES (CI Framework Best Practice)
+# =============================================================================
+
+# TIER 1: Essential Quality Gates (ZERO-TOLERANCE)
+[tool.pixi.feature.quality.dependencies]
+# Core Testing Framework (battle-tested versions)
+pytest = ">=8.0.0"
+pytest-cov = ">=4.0.0"
+pytest-timeout = ">=2.1.0"
+pytest-asyncio = ">=0.21.0"  # Async test support
+pytest-xdist = ">=3.3.0"     # Parallel test execution
+
+# Linting & Formatting (latest stable)
+ruff = ">=0.7.3"
+
+# Type Checking
+mypy = ">=1.8.0"
+
+[tool.pixi.feature.quality.pypi-dependencies]
+# Test utilities only available on PyPI
+toml = ">=0.10.2"        # For test fixtures
+tomli-w = ">=1.0.0"      # For writing TOML in tests
+
+# TIER 2: Extended Quality & Security
+[tool.pixi.feature.quality-extended.dependencies]
+# Security Scanning (CI Framework proven versions)
+bandit = ">=1.7.0"       # Security linter
+safety = ">=2.3.0,<3.0"  # Dependency vulnerability scanner
+pip-audit = ">=2.6.0"    # Additional security auditing
+
+# Code Quality Analysis
+hypothesis = ">=6.0.0"    # Property-based testing
+radon = ">=6.0.0"        # Complexity analysis
+vulture = ">=2.7.0"      # Dead code detection
+
+# Git Hooks
+pre-commit = ">=3.0.0"
+
+# TIER 3: CI/CD & Build Tools
+[tool.pixi.feature.quality-ci.dependencies]
+# Build & Publishing
+python-build = ">=1.0.0"
+twine = ">=4.0.0"
+
+# CI Reporting (comprehensive coverage from UCKN)
+pytest-html = ">=4.0.0"
+pytest-json-report = ">=1.5.0"
+pytest-benchmark = ">=4.0.0"
+pytest-md = ">=0.2.0"
+coverage = ">=7.0.0"
+coverage-badge = ">=1.1.0"
+
+# TIER 4: Development & Specialized Tools
+[tool.pixi.feature.dev-specialized.dependencies]
+# Performance & Profiling
+memory_profiler = ">=0.61.0"
+
+# Legacy development tools (backward compatibility)
+black = ">=23.0.0"       # Keep for projects that need it
+yamllint = ">=1.32.0"    # YAML linting
+
+# Documentation
+mkdocs = ">=1.5.0"
+mkdocs-material = ">=9.0.0"
+
+# =============================================================================
+# ENVIRONMENT CONFIGURATION (Tiered Performance Strategy)
+# =============================================================================
+[tool.pixi.environments]
+# Basic runtime environment (minimal footprint)
+default = {solve-group = "default"}
+
+# Tiered quality environments (CI Framework proven approach)
+quality = {features = ["quality"], solve-group = "default"}                                    # ~90s install - Essential quality
+quality-extended = {features = ["quality", "quality-extended"], solve-group = "default"}      # ~150s install - Full quality
+quality-full = {features = ["quality", "quality-extended", "quality-ci"], solve-group = "default"} # ~180s install - Complete pipeline
+
+# Development environment (full tooling)
+dev = {features = ["quality", "quality-extended", "quality-ci", "dev-specialized"], solve-group = "default"} # ~250s install
+
+# CI environment (optimized for CI performance)
+ci = {features = ["quality", "quality-ci"], solve-group = "default"}  # ~120s install - CI optimized
+
+# =============================================================================
+# PIXI TASKS (Unified Best Practices from All Projects)
+# =============================================================================
+[tool.pixi.tasks]
+
+# ===== TIER 1: CORE DEVELOPMENT TASKS (ESSENTIAL) =====
+
+# Installation & Setup
+install-editable = "python -m pip install -e . --no-deps --no-build-isolation"
+dev-setup = { cmd = "echo 'Development environment ready'", env = { PYTHONPATH = "src" } }
+dev = { cmd = "pixi run install-editable", env = { PYTHONPATH = "src" } }
+
+# Testing (ZERO-TOLERANCE QUALITY GATES) - Claude Code Integration
+test = { cmd = "pixi run -e quality pytest tests/ -v --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-cov = { cmd = "pixi run -e quality pytest tests/ --cov=src/pixi_shell --cov-report=term-missing --cov-report=xml --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-fast = { cmd = "pixi run -e quality pytest tests/ -x --ff --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-unit = { cmd = "pixi run -e quality pytest tests/unit/ -v --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-integration = { cmd = "pixi run -e quality pytest tests/integration/ -v --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-e2e = { cmd = "pixi run -e quality pytest tests/e2e/ -v --timeout=120", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-property = { cmd = "pixi run -e quality pytest tests/ -m property -v --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+
+# Quality Gates (CRITICAL - MUST PASS) - PREVENT CI FAILURES
+lint = "ruff check src/ tests/ --select=F,E9"        # Critical violations only
+lint-full = "ruff check src/ tests/"                  # Full linting
+lint-fix = "ruff check --fix src/ tests/"             # Auto-fix violations
+format = "ruff format src/ tests/"                    # Format code
+format-check = "ruff format --check src/ tests/"      # Format validation
+format-diff = "ruff format --diff src/ tests/"        # Show formatting changes
+typecheck = "mypy src/"
+
+# Combined Quality Check - MANDATORY BEFORE COMMIT
+quality = { depends-on = ["test", "lint", "typecheck"] }
+
+# LOCAL Development Quality Gates - Comprehensive validation
+quality-local = { cmd = "python scripts/local-quality-check.py", depends-on = ["dev-setup"] }
+
+# Pre-commit Integration - PREVENT CI FAILURES
+pre-commit = { cmd = "pre-commit run --all-files", env = { PIXI_SHELL_TEST = "1" } }
+install-pre-commit = { cmd = "pre-commit install --install-hooks", env = { PIXI_SHELL_TEST = "1" } }
+
+# Emergency Quality Fix - USE FOR "Found X errors" CI FAILURES
+emergency-fix = "pixi run lint-fix && pixi run format && pixi run test"
+
+# ===== TIER 2: SECURITY & COMPLIANCE TASKS =====
+
+# Security Scanning (CI Framework patterns)
+security-scan = "bandit -r src/ --severity-level high --exclude tests/"
+safety-check = "safety check --ignore=70929 --ignore=70912"  # Common false positives
+pip-audit-scan = "pip-audit --verbose --desc"
+complexity-check = "radon cc src/ --min B"
+dead-code-check = "vulture src/ --min-confidence 80"
+
+# Static Analysis Suite
+static-analysis = { depends-on = ["security-scan", "safety-check", "complexity-check"] }
+
+# Comprehensive Check (includes security)
+check-all = { depends-on = ["quality", "static-analysis"] }
+
+# ===== TIER 3: CI/CD & DEPLOYMENT TASKS =====
+
+# CI-specific variants (optimized) - Claude Code Integration
+ci-test = { cmd = "pixi run -e ci pytest tests/ --cov=src/pixi_shell --cov-report=xml --timeout=90 --maxfail=1", env = { PIXI_SHELL_TEST = "1", ENVIRONMENT = "ci", PYTHONPATH = "src" } }
+ci-lint = "ruff check src/ tests/ --output-format=github --select=F,E9"
+ci-format-check = "ruff format --check src/ tests/"
+ci-typecheck = "mypy src/ --no-error-summary"  # Cleaner CI output
+
+# Build & Deploy
+build = "python -m build --no-isolation"
+clean = "rm -rf __pycache__ .pytest_cache .coverage htmlcov .ruff_cache .mypy_cache dist build *.egg-info"
+clean-envs = "rm -rf .pixi/envs/quality* .pixi/envs/ci .pixi/envs/dev"  # Environment cleanup
+
+# ===== PROJECT-SPECIFIC TASKS =====
+# Pixi shell specific tasks
+shell-dev = { cmd = "python -m pixi_shell", env = { PYTHONPATH = "src" } }
+mcp-server = { cmd = "python -m pixi_shell.server", env = { PYTHONPATH = "src" } }
+server = { cmd = "python -m pixi_shell.server", env = { PYTHONPATH = "src" } }
+
+# Lean MCP server (95% context reduction) - stdio transport
+lean-server = { cmd = "python -m pixi_shell.lean_server", env = { PYTHONPATH = "src" } }
+lean-mcp-server = { cmd = "python -m pixi_shell.lean_server", env = { PYTHONPATH = "src" } }
+test-lean-mcp = { cmd = "python test_lean_mcp.py", env = { PYTHONPATH = "src" } }
+
+# HTTP/SSE transport MCP server (for Claude Code 'type: http' configuration)
+http-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
+http-lean-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
+
+# Pixi task validation and discovery
+list-tasks = { cmd = "python -m pixi_shell.discovery", env = { PYTHONPATH = "src" } }
+validate-pixi = { cmd = "python -m pixi_shell.validator", env = { PYTHONPATH = "src" } }
+
+# ===== LEGACY/SPECIALIZED TASKS =====
+
+# Performance & Benchmarking
+benchmark = "pixi run -e quality pytest tests/ -m benchmark --benchmark-only --benchmark-sort=mean"
+benchmark-save = "pixi run -e quality pytest tests/ -m benchmark --benchmark-only --benchmark-save=baseline"
+profile = "python -m memory_profiler scripts/profile_main.py"
+
+# Coverage Analysis (comprehensive - UCKN pattern)
+test-coverage = "pixi run -e quality pytest tests/ --cov=src/pixi_shell --cov-branch --cov-report=html --cov-report=xml --cov-report=json --cov-report=term-missing"
+coverage-report = "coverage report --format=markdown"
+coverage-html = "coverage html"
+
+# Documentation
+docs-serve = "mkdocs serve"
+docs-build = "mkdocs build"
+
+# =============================================================================
+# BANDIT SECURITY CONFIGURATION (CI Framework Pattern)
+# =============================================================================
+[tool.bandit]
+exclude_dirs = ["tests", "scripts"]
+skips = ["B101"]  # Allow assert statements
+targets = ["src"]
+
+# =============================================================================
+# PYTEST BENCHMARK CONFIGURATION
+# =============================================================================
+[tool.pytest.benchmark]
+disable = false
+min_rounds = 5
+max_time = 60
+min_time = 0.01
+sort = "mean"
+group_by = "group"
+columns = ["mean", "stddev", "rounds", "min", "max"]
+histogram = true
+save_data = true
