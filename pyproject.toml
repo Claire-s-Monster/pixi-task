@@ -386,6 +386,12 @@ test-lean-mcp = { cmd = "python test_lean_mcp.py", env = { PYTHONPATH = "src" } 
 http-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
 http-lean-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
 
+# HTTP server management (port 4101)
+port-check = "ss -tlnp | grep :4101 || echo 'port 4101 not bound'"
+kill-server = "fuser -k 4101/tcp 2>/dev/null && echo 'killed' || echo 'no process on 4101'"
+start-http-server = "nohup python -m pixi_shell.http_lean_server --port 4101 > /tmp/pixi-shell-http.log 2>&1 &"
+verify-server-up = "sleep 1 && ss -tlnp | grep :4101"
+
 # Pixi task validation and discovery
 list-tasks = { cmd = "python -m pixi_shell.discovery", env = { PYTHONPATH = "src" } }
 validate-pixi = { cmd = "python -m pixi_shell.validator", env = { PYTHONPATH = "src" } }
