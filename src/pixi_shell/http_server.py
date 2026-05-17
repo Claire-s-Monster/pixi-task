@@ -86,7 +86,9 @@ class HTTPPixiShellServer:
         from pixi_shell.lean_mcp_interface import LeanMCPInterface
 
         self._container = Container(working_dir=working_dir)
-        self._lean_interface = LeanMCPInterface(self._container)
+        self._lean_interface = LeanMCPInterface(
+            self._container, expose_complexity_floor=["core", "extended"]
+        )
 
         @asynccontextmanager
         async def lifespan(app: FastAPI):
@@ -153,76 +155,8 @@ class HTTPPixiShellServer:
             self._sessions[session_id]["last_activity"] = time.time()
 
     def _execute_lean_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
-        """Execute a lean meta-tool and return the raw result."""
-        registry = self._lean_interface.tool_registry
-
-        if tool_name == "discover_tools":
-            pattern = arguments.get("pattern", "")
-            tools = []
-            for name, info in registry.items():
-                if pattern and pattern.strip() and pattern.lower() not in name.lower():
-                    continue
-                tools.append(
-                    {
-                        "name": name,
-                        "description": info["description"],
-                        "domain": info["domain"],
-                        "complexity": info["complexity"],
-                    }
-                )
-            return {
-                "available_tools": tools,
-                "total_tools": len(registry),
-                "filtered_count": len(tools),
-                "domains": list(set(info["domain"] for info in registry.values())),
-                "complexity_levels": list(
-                    set(info["complexity"] for info in registry.values())
-                ),
-            }
-
-        if tool_name == "get_tool_spec":
-            target = arguments.get("tool_name")
-            if not target or target not in registry:
-                return {
-                    "error": f"Tool '{target}' not found",
-                    "available_tools": list(registry.keys()),
-                }
-            info = registry[target]
-            return {
-                "name": target,
-                "description": info["description"],
-                "domain": info["domain"],
-                "complexity": info["complexity"],
-                "schema": info["schema"],
-                "examples": info["examples"],
-            }
-
-        if tool_name == "execute_tool":
-            target = arguments.get("tool_name")
-            params = arguments.get("parameters", {})
-            if not target or target not in registry:
-                return {
-                    "error": f"Tool '{target}' not found",
-                    "available_tools": list(registry.keys()),
-                }
-            impl = registry[target]["implementation"]
-            if isinstance(params, str):
-                try:
-                    params = json.loads(params)
-                except (json.JSONDecodeError, TypeError):
-                    params = {}
-            try:
-                result = impl(**params)
-                return {"tool": target, "status": "success", "result": result}
-            except Exception as e:
-                logger.error("Tool execution error for %s: %s", target, e)
-                return {"tool": target, "status": "error", "error": str(e)}
-
-        # Unknown meta-tool
-        return {
-            "error": f"Unknown meta-tool: {tool_name}",
-            "available_meta_tools": ["discover_tools", "get_tool_spec", "execute_tool"],
-        }
+        """Dispatch a meta-tool call to the underlying LeanMCPInterface."""
+        return self._lean_interface.dispatch_meta_tool(tool_name, arguments)
 
     def _register_endpoints(self) -> None:
         """Register all HTTP endpoints."""
@@ -233,7 +167,7 @@ class HTTPPixiShellServer:
         async def well_known_stub(path: str):
             return JSONResponse(status_code=404, content={"error": "OAuth not supported"})
 
-        @self.app.post("/register")
+        @self.app.api_route("/register", methods=["GET", "POST", "PUT", "DELETE"])
         async def register_stub():
             return JSONResponse(status_code=404, content={"error": "Dynamic client registration not supported"})
 

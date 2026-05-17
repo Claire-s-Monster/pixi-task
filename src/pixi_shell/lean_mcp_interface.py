@@ -45,9 +45,14 @@ class LeanMCPInterface:
     while maintaining 100% functionality through dynamic discovery.
     """
 
-    def __init__(self, business_engine: Container):
+    def __init__(
+        self,
+        business_engine: Container,
+        expose_complexity_floor: list[str] | None = None,
+    ):
         """Initialize lean interface with business logic container."""
         self.business_engine = business_engine
+        self.expose_complexity_floor = expose_complexity_floor
         self.app = FastMCP("pixi-shell-lean", version="0.1.0")
 
         # Tool registry: maps tool names to implementations and metadata
@@ -98,6 +103,10 @@ class LeanMCPInterface:
                         "type": "string",
                         "description": "Working directory (optional)",
                     },
+                    "environment": {
+                        "type": "string",
+                        "description": "Pixi environment to run the task in (e.g. 'default', 'test', 'docs')",
+                    },
                     "manifest_path": {
                         "type": "string",
                         "description": "Path to parent project's pixi.toml (for sub-packages that share a parent's pixi environment)",
@@ -113,6 +122,7 @@ class LeanMCPInterface:
             "examples": [
                 {"task_name": "test"},
                 {"task_name": "lint", "args": ["--fix"]},
+                {"task_name": "test", "environment": "test"},
                 {"task_name": "build", "timeout": 600},
             ],
         }
@@ -163,7 +173,7 @@ class LeanMCPInterface:
             "implementation": self._wrap_tool(self._pixi_install_impl),
             "description": "Install/sync pixi environment and dependencies",
             "domain": "environment",
-            "complexity": "core",
+            "complexity": "extended",
             "schema": {
                 "type": "object",
                 "properties": {
@@ -388,6 +398,138 @@ class LeanMCPInterface:
 
         return wrapper
 
+    def dispatch_meta_tool(self, name: str, params: dict) -> dict:
+        """
+        Single dispatch entry point for the three meta-tools.
+
+        Used both by the FastMCP closures registered in _setup_meta_tools
+        and by transport adapters (e.g., HTTPServer) that need to invoke
+        meta-tool behavior without going through the FastMCP protocol layer.
+
+        name must be one of: "discover_tools", "get_tool_spec", "execute_tool".
+        """
+        if name == "discover_tools":
+            pattern = params.get("pattern", "")
+
+            exposed_items = [
+                (name_, info) for name_, info in self.tool_registry.items()
+                if self.expose_complexity_floor is None
+                or info.get("complexity") in self.expose_complexity_floor
+            ]
+
+            tools = []
+            for tool_name, info in exposed_items:
+                if pattern and pattern.strip() and pattern.lower() not in tool_name.lower():
+                    continue
+
+                tools.append(
+                    {
+                        "name": tool_name,
+                        "description": info["description"],
+                        "domain": info["domain"],
+                        "complexity": info["complexity"],
+                    }
+                )
+
+            return {
+                "available_tools": tools,
+                "total_tools": len(exposed_items),
+                "filtered_count": len(tools),
+                "domains": list(
+                    set(info["domain"] for _, info in exposed_items)
+                ),
+                "complexity_levels": list(
+                    set(info["complexity"] for _, info in exposed_items)
+                ),
+            }
+
+        if name == "get_tool_spec":
+            tool_name = params.get("tool_name")
+            if tool_name not in self.tool_registry or (
+                self.expose_complexity_floor is not None
+                and self.tool_registry[tool_name]["complexity"]
+                not in self.expose_complexity_floor
+            ):
+                exposed = [
+                    n for n, info in self.tool_registry.items()
+                    if self.expose_complexity_floor is None
+                    or info["complexity"] in self.expose_complexity_floor
+                ]
+                return {
+                    "error": f"Tool '{tool_name}' not found",
+                    "available_tools": exposed,
+                }
+
+            tool_info = self.tool_registry[tool_name]
+            return {
+                "name": tool_name,
+                "description": tool_info["description"],
+                "domain": tool_info["domain"],
+                "complexity": tool_info["complexity"],
+                "schema": tool_info["schema"],
+                "examples": tool_info["examples"],
+            }
+
+        if name == "execute_tool":
+            tool_name = params.get("tool_name")
+            parameters = params.get("parameters", {})
+
+            if tool_name not in self.tool_registry:
+                exposed_names = [
+                    n for n, info in self.tool_registry.items()
+                    if self.expose_complexity_floor is None
+                    or info.get("complexity") in self.expose_complexity_floor
+                ]
+                return {
+                    "tool": tool_name,
+                    "status": "error",
+                    "error": f"Tool '{tool_name}' not found",
+                    "available_tools": exposed_names,
+                }
+
+            if (
+                self.expose_complexity_floor is not None
+                and self.tool_registry[tool_name]["complexity"]
+                not in self.expose_complexity_floor
+            ):
+                return {
+                    "tool": tool_name,
+                    "status": "error",
+                    "error": f"Tool '{tool_name}' is not exposed on this transport",
+                }
+
+            tool_func = self.tool_registry[tool_name]["implementation"]
+
+            if isinstance(parameters, str):
+                try:
+                    parameters = json.loads(parameters)
+                except (json.JSONDecodeError, TypeError) as e:
+                    return {
+                        "tool": tool_name,
+                        "status": "error",
+                        "error": f"Invalid parameters JSON: {e}",
+                    }
+            if not isinstance(parameters, dict):
+                return {
+                    "tool": tool_name,
+                    "status": "error",
+                    "error": (
+                        f"parameters must be a mapping, got {type(parameters).__name__}"
+                    ),
+                }
+
+            try:
+                result = tool_func(**parameters)
+                return {"tool": tool_name, "status": "success", "result": result}
+            except Exception as e:
+                logger.error(f"Error executing {tool_name}: {e}")
+                return {"tool": tool_name, "status": "error", "error": str(e)}
+
+        return {
+            "error": f"Unknown meta-tool: {name}",
+            "available_meta_tools": ["discover_tools", "get_tool_spec", "execute_tool"],
+        }
+
     def _setup_meta_tools(self):
         """Setup the 3 meta-tools for dynamic discovery."""
 
@@ -431,32 +573,7 @@ class LeanMCPInterface:
                 - discover_tools("task") → Filter task-related tools
                 - discover_tools("dependency") → Filter dependency management tools
             """
-            tools = []
-
-            for name, info in self.tool_registry.items():
-                if pattern and pattern.strip() and pattern.lower() not in name.lower():
-                    continue
-
-                tools.append(
-                    {
-                        "name": name,
-                        "description": info["description"],
-                        "domain": info["domain"],
-                        "complexity": info["complexity"],
-                    }
-                )
-
-            return {
-                "available_tools": tools,
-                "total_tools": len(self.tool_registry),
-                "filtered_count": len(tools),
-                "domains": list(
-                    set(info["domain"] for info in self.tool_registry.values())
-                ),
-                "complexity_levels": list(
-                    set(info["complexity"] for info in self.tool_registry.values())
-                ),
-            }
+            return self.dispatch_meta_tool("discover_tools", {"pattern": pattern})
 
         @self.app.tool(
             description="Get pixi-shell tool specification with schema and examples. USE WHEN: need parameter details before executing a tool"
@@ -494,21 +611,7 @@ class LeanMCPInterface:
 
             TOOL NOT FOUND? Run discover_tools() first to see available tools.
             """
-            if tool_name not in self.tool_registry:
-                return {
-                    "error": f"Tool '{tool_name}' not found",
-                    "available_tools": list(self.tool_registry.keys()),
-                }
-
-            tool_info = self.tool_registry[tool_name]
-            return {
-                "name": tool_name,
-                "description": tool_info["description"],
-                "domain": tool_info["domain"],
-                "complexity": tool_info["complexity"],
-                "schema": tool_info["schema"],
-                "examples": tool_info["examples"],
-            }
+            return self.dispatch_meta_tool("get_tool_spec", {"tool_name": tool_name})
 
         @self.app.tool(
             description="Execute pixi-shell tool with parameters. USE WHEN: running pixi tasks, managing dependencies, building packages"
@@ -553,41 +656,7 @@ class LeanMCPInterface:
 
             DON'T KNOW PARAMETERS? Run get_tool_spec(tool_name) first.
             """
-            if tool_name not in self.tool_registry:
-                return {
-                    "error": f"Tool '{tool_name}' not found",
-                    "available_tools": list(self.tool_registry.keys()),
-                }
-
-            tool_info = self.tool_registry[tool_name]
-            tool_func = tool_info["implementation"]
-
-            # Coerce JSON string parameters to dict (MCP proxies may
-            # serialize objects as strings)
-            if isinstance(parameters, str):
-                try:
-                    parameters = json.loads(parameters)
-                except (json.JSONDecodeError, TypeError) as e:
-                    return {
-                        "tool": tool_name,
-                        "status": "error",
-                        "error": f"Invalid parameters JSON: {e}",
-                    }
-            if not isinstance(parameters, dict):
-                return {
-                    "tool": tool_name,
-                    "status": "error",
-                    "error": (
-                        f"parameters must be a mapping, got {type(parameters).__name__}"
-                    ),
-                }
-
-            try:
-                result = tool_func(**parameters)
-                return {"tool": tool_name, "status": "success", "result": result}
-            except Exception as e:
-                logger.error(f"Error executing {tool_name}: {e}")
-                return {"tool": tool_name, "status": "error", "error": str(e)}
+            return self.dispatch_meta_tool("execute_tool", {"tool_name": tool_name, "parameters": parameters})
 
     def get_app(self) -> FastMCP:
         """Get the FastMCP application instance."""
@@ -599,11 +668,13 @@ class LeanMCPInterface:
         task_name: str,
         args: list[str] = [],
         working_dir: str | None = None,
+        environment: str | None = None,
         manifest_path: str | None = None,
         timeout: int = 300,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.run_task(
-            task_name, args, working_dir, timeout, manifest_path=manifest_path
+            task_name, args, working_dir, timeout,
+            environment=environment, manifest_path=manifest_path,
         )
 
     def _pixi_list_tasks_impl(self, working_dir: str | None = None) -> dict[str, Any]:
