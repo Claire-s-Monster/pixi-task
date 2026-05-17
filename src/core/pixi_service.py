@@ -54,6 +54,7 @@ class PixiShellService:
         args: list[str] | None = None,
         working_dir: str | None = None,
         timeout: int = 300,
+        environment: str | None = None,
         manifest_path: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -96,7 +97,7 @@ class PixiShellService:
             # Create execution context
             context = PixiExecutionContext(
                 working_dir=working_dir, timeout=timeout, capture_output=True,
-                manifest_path=manifest_path,
+                environment=environment, manifest_path=manifest_path,
             )
 
             # Execute task

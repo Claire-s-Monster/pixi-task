@@ -54,6 +54,8 @@ class PixiExecutionAdapter(PixiExecutorPort):
             command = [context.pixi_executable, "run"]
             if context.manifest_path:
                 command.extend(["--manifest-path", context.manifest_path])
+            if context.environment:
+                command.extend(["--environment", context.environment])
             command.append(task_name)
             command.extend(safe_args)
             command_line = " ".join(command)
