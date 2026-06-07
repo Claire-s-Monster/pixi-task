@@ -180,6 +180,8 @@ class PixiExecutionAdapter(PixiExecutorPort):
         try:
             # Build install command
             command = [context.pixi_executable, "install"]
+            if context.environment:
+                command.extend(["--environment", context.environment])
             command_line = " ".join(command)
 
             # Execute with timeout (longer timeout for installs)

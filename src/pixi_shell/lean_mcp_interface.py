@@ -193,10 +193,14 @@ class LeanMCPInterface:
                     "working_dir": {
                         "type": "string",
                         "description": "Working directory (optional)",
-                    }
+                    },
+                    "environment": {
+                        "type": "string",
+                        "description": "Pixi environment to install/sync (e.g. 'default', 'ci', 'docs'). When omitted, pixi installs the default environment only.",
+                    },
                 },
             },
-            "examples": [{}, {"working_dir": "/path/to/project"}],
+            "examples": [{}, {"working_dir": "/path/to/project"}, {"environment": "ci"}],
         }
 
         # TIER 2: ENVIRONMENT AND PROJECT MANAGEMENT
@@ -715,8 +719,14 @@ class LeanMCPInterface:
             "environment": environment,
         }
 
-    def _pixi_install_impl(self, working_dir: str | None = None) -> dict[str, Any]:
-        return self.business_engine.pixi_service.install(working_dir)
+    def _pixi_install_impl(
+        self,
+        working_dir: str | None = None,
+        environment: str | None = None,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.install(
+            working_dir, environment=environment
+        )
 
     def _pixi_info_impl(self, working_dir: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.get_info(working_dir)

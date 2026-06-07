@@ -207,11 +207,15 @@ class PixiShellService:
             )
             return False
 
-    def install(self, working_dir: str | None = None) -> dict[str, Any]:
+    def install(
+        self,
+        working_dir: str | None = None,
+        environment: str | None = None,
+    ) -> dict[str, Any]:
         """
         Install/sync pixi environment and dependencies.
 
-        Returns: {"success": bool, "stdout": str, "stderr": str, "execution_time": float}
+        Returns: {"success": bool, "stdout": str, "stderr": str, "execution_time": float, "environment": str | None}
         """
         start_time = time.time()
         working_dir = working_dir or os.getcwd()
@@ -223,12 +227,14 @@ class PixiShellService:
                     "stdout": "",
                     "stderr": f"Directory {working_dir} is not a pixi project",
                     "execution_time": time.time() - start_time,
+                    "environment": environment,
                 }
 
             context = PixiExecutionContext(
                 working_dir=working_dir,
                 timeout=600,  # Longer timeout for installations
                 capture_output=True,
+                environment=environment,
             )
 
             result = self.pixi_executor.install(context)
@@ -239,6 +245,7 @@ class PixiShellService:
                     "success": result.success,
                     "execution_time": result.execution_time,
                     "working_dir": working_dir,
+                    "environment": environment,
                 },
             )
 
@@ -247,6 +254,7 @@ class PixiShellService:
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "execution_time": result.execution_time,
+                "environment": environment,
             }
 
         except Exception as e:
@@ -262,6 +270,7 @@ class PixiShellService:
                 "stdout": "",
                 "stderr": error_msg,
                 "execution_time": execution_time,
+                "environment": environment,
             }
 
     def get_info(self, working_dir: str | None = None) -> dict[str, Any]:

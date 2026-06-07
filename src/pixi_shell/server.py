@@ -135,7 +135,10 @@ def pixi_task_exists(task_name: str, working_dir: str | None = None) -> dict[str
 
 
 @app.tool()
-def pixi_install(working_dir: str | None = None) -> dict[str, Any]:
+def pixi_install(
+    working_dir: str | None = None,
+    environment: str | None = None,
+) -> dict[str, Any]:
     """
     Install/sync pixi environment and dependencies.
     Essential for: Environment setup, dependency resolution
@@ -144,9 +147,11 @@ def pixi_install(working_dir: str | None = None) -> dict[str, Any]:
 
     Provides safe, timeout-controlled environment installation with proper error handling
     and progress reporting. Critical for project setup and dependency synchronization.
+
+        environment: Pixi environment to install (optional; default env if omitted)
     """
     try:
-        return container.pixi_service.install(working_dir)
+        return container.pixi_service.install(working_dir, environment=environment)
     except Exception as e:
         logger.error(f"Error in pixi_install: {e}")
         return {
