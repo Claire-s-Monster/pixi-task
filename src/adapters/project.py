@@ -141,7 +141,9 @@ class PixiProjectAdapter(PixiProjectPort):
             )
             return PixiProjectInfo.create_empty(path)
 
-    def get_available_tasks(self, path: str) -> dict[str, str]:
+    def get_available_tasks(
+        self, path: str, environment: str | None = None
+    ) -> dict[str, str]:
         """Get available pixi tasks with descriptions."""
         try:
             if not self.is_pixi_project(path):
@@ -151,7 +153,7 @@ class PixiProjectAdapter(PixiProjectPort):
             pixi_toml_path = Path(path) / "pixi.toml"
             pyproject_toml_path = Path(path) / "pyproject.toml"
 
-            config = {}
+            config: dict = {}
 
             if pixi_toml_path.exists():
                 with open(pixi_toml_path, "r") as f:
@@ -165,10 +167,31 @@ class PixiProjectAdapter(PixiProjectPort):
             else:
                 return {}
 
-            tasks = config.get("tasks", {})
-            available_tasks = {}
+            # Pixi semantics: env=None unions all features for discovery; specific env walks [environments]
+            base_tasks: dict = config.get("tasks", {})
+            if environment is None:
+                merged: dict = dict(base_tasks)
+                for feature_def in config.get("feature", {}).values():
+                    merged.update(feature_def.get("tasks", {}))
+            elif environment == "default":
+                merged = dict(base_tasks)
+            else:
+                env_entry = config.get("environments", {}).get(environment)
+                if env_entry is None:
+                    return {}
+                if isinstance(env_entry, dict):
+                    feature_names: list = env_entry.get("features", [])
+                elif isinstance(env_entry, list):
+                    feature_names = env_entry
+                else:
+                    return {}
+                merged = dict(base_tasks)
+                for fname in feature_names:
+                    feature_def = config.get("feature", {}).get(fname, {})
+                    merged.update(feature_def.get("tasks", {}))
 
-            for task_name, task_def in tasks.items():
+            available_tasks: dict[str, str] = {}
+            for task_name, task_def in merged.items():
                 if isinstance(task_def, str):
                     available_tasks[task_name] = task_def
                 elif isinstance(task_def, dict):

@@ -135,11 +135,15 @@ class PixiShellService:
                 "working_dir": working_dir,
             }
 
-    def list_tasks(self, working_dir: str | None = None) -> dict[str, Any]:
+    def list_tasks(
+        self,
+        working_dir: str | None = None,
+        environment: str | None = None,
+    ) -> dict[str, Any]:
         """
         List all available pixi tasks with descriptions.
 
-        Returns: {"tasks": {"test": "Run pytest", "lint": "Run ruff", ...}}
+        Returns: {"tasks": {"test": "Run pytest", "lint": "Run ruff", ...}, "environment": ...}
         """
         working_dir = working_dir or os.getcwd()
 
@@ -147,17 +151,24 @@ class PixiShellService:
             if not self.pixi_project.is_pixi_project(working_dir):
                 return {
                     "tasks": {},
+                    "environment": environment,
                     "error": f"Directory {working_dir} is not a pixi project",
                 }
 
-            available_tasks = self.pixi_project.get_available_tasks(working_dir)
-
-            self.logging.log_info(
-                f"Listed pixi tasks",
-                {"task_count": len(available_tasks), "working_dir": working_dir},
+            available_tasks = self.pixi_project.get_available_tasks(
+                working_dir, environment=environment
             )
 
-            return {"tasks": available_tasks}
+            self.logging.log_info(
+                "Listed pixi tasks",
+                {
+                    "task_count": len(available_tasks),
+                    "working_dir": working_dir,
+                    "environment": environment,
+                },
+            )
+
+            return {"tasks": available_tasks, "environment": environment}
 
         except Exception as e:
             error_msg = f"Failed to list tasks: {str(e)}"
@@ -165,9 +176,14 @@ class PixiShellService:
                 error_msg, {"working_dir": working_dir, "error": str(e)}
             )
 
-            return {"tasks": {}, "error": error_msg}
+            return {"tasks": {}, "environment": environment, "error": error_msg}
 
-    def task_exists(self, task_name: str, working_dir: str | None = None) -> bool:
+    def task_exists(
+        self,
+        task_name: str,
+        working_dir: str | None = None,
+        environment: str | None = None,
+    ) -> bool:
         """
         Check if a pixi task exists.
 
@@ -179,7 +195,9 @@ class PixiShellService:
             if not self.pixi_project.is_pixi_project(working_dir):
                 return False
 
-            available_tasks = self.pixi_project.get_available_tasks(working_dir)
+            available_tasks = self.pixi_project.get_available_tasks(
+                working_dir, environment=environment
+            )
             return task_name in available_tasks
 
         except Exception as e:

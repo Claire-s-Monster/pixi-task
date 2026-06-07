@@ -138,10 +138,18 @@ class LeanMCPInterface:
                     "working_dir": {
                         "type": "string",
                         "description": "Working directory (optional)",
-                    }
+                    },
+                    "environment": {
+                        "type": "string",
+                        "description": "Pixi environment name. None (default) lists tasks from base + all features. 'default' lists base [tasks] only. A named env walks [environments.<name>.features].",
+                    },
                 },
             },
-            "examples": [{}, {"working_dir": "/path/to/project"}],
+            "examples": [
+                {},
+                {"working_dir": "/path/to/project"},
+                {"environment": "ci"},
+            ],
         }
 
         registry["pixi_task_exists"] = {
@@ -160,12 +168,17 @@ class LeanMCPInterface:
                         "type": "string",
                         "description": "Working directory (optional)",
                     },
+                    "environment": {
+                        "type": "string",
+                        "description": "Pixi environment name. None (default) lists tasks from base + all features. 'default' lists base [tasks] only. A named env walks [environments.<name>.features].",
+                    },
                 },
                 "required": ["task_name"],
             },
             "examples": [
                 {"task_name": "test"},
                 {"task_name": "deploy", "working_dir": "/project"},
+                {"task_name": "test", "environment": "ci"},
             ],
         }
 
@@ -677,17 +690,29 @@ class LeanMCPInterface:
             environment=environment, manifest_path=manifest_path,
         )
 
-    def _pixi_list_tasks_impl(self, working_dir: str | None = None) -> dict[str, Any]:
-        return self.business_engine.pixi_service.list_tasks(working_dir)
+    def _pixi_list_tasks_impl(
+        self,
+        working_dir: str | None = None,
+        environment: str | None = None,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.list_tasks(
+            working_dir, environment=environment
+        )
 
     def _pixi_task_exists_impl(
-        self, task_name: str, working_dir: str | None = None
+        self,
+        task_name: str,
+        working_dir: str | None = None,
+        environment: str | None = None,
     ) -> dict[str, Any]:
-        exists = self.business_engine.pixi_service.task_exists(task_name, working_dir)
+        exists = self.business_engine.pixi_service.task_exists(
+            task_name, working_dir, environment=environment
+        )
         return {
             "exists": exists,
             "task_name": task_name,
             "working_dir": working_dir or "current",
+            "environment": environment,
         }
 
     def _pixi_install_impl(self, working_dir: str | None = None) -> dict[str, Any]:
