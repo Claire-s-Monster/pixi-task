@@ -3096,7 +3096,7 @@ packages:
 - pypi: ./
   name: pixi-shell
   version: 0.1.0
-  sha256: a3a3318b44fd741f6f2e699f17d1741e92cdd57a34062ab788191979a2bf6531
+  sha256: 23f7c765f0904f71bf49202aa215b23ceeaf483e8ef212c5d89d052cc5f68b98
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.9.6-pyhcf101f3_0.conda

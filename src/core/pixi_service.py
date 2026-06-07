@@ -81,19 +81,6 @@ class PixiShellService:
                     "working_dir": working_dir,
                 }
 
-            # Check if task exists (against the project that owns the manifest)
-            available_tasks = self.pixi_project.get_available_tasks(project_dir)
-            if task_name not in available_tasks:
-                return {
-                    "success": False,
-                    "stdout": "",
-                    "stderr": f"Task '{task_name}' not found. Available tasks: {', '.join(available_tasks.keys())}",
-                    "exit_code": 1,
-                    "execution_time": time.time() - start_time,
-                    "task_name": task_name,
-                    "working_dir": working_dir,
-                }
-
             # Create execution context
             context = PixiExecutionContext(
                 working_dir=working_dir, timeout=timeout, capture_output=True,

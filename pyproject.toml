@@ -423,7 +423,7 @@ targets = ["src"]
 # =============================================================================
 # PYTEST BENCHMARK CONFIGURATION
 # =============================================================================
-[tool.pytest.benchmark]
+[tool.pytest_benchmark]
 disable = false
 min_rounds = 5
 max_time = 60
