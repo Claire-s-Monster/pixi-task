@@ -3094,9 +3094,9 @@ packages:
   size: 113962
   timestamp: 1734796725791
 - pypi: ./
-  name: pixi-shell
+  name: pixi-task
   version: 0.1.0
-  sha256: 23f7c765f0904f71bf49202aa215b23ceeaf483e8ef212c5d89d052cc5f68b98
+  sha256: 978af5202d3d6fea4f8bb88456bdcd6d5c09be52508b8ce055fa6395d61f342c
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.9.6-pyhcf101f3_0.conda

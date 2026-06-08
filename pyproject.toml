@@ -217,7 +217,7 @@ pydantic = ">=2.10"  # Data validation (required by FastMCP)
 
 [tool.pixi.pypi-dependencies]
 # Install project in editable mode
-pixi-shell = { path = ".", editable = true }
+pixi-task = { path = ".", editable = true }
 # Runtime dependencies for MCP server
 toml = ">=0.10.2"  # Required for pixi.toml parsing
 
