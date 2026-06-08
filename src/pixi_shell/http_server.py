@@ -14,7 +14,7 @@ Key features:
 Architecture:
     Claude Code MCP Client → HTTP GET /mcp (SSE stream, keepalive)
                            → HTTP POST /mcp (JSON-RPC 2.0 tool calls)
-                           → pixi_shell LeanMCPInterface (3 meta-tools)
+                           → pixi_shell LeanMCPInterface (4 meta-tools)
                            → PixiShellService → pixi commands
 """
 
@@ -87,7 +87,9 @@ class HTTPPixiShellServer:
 
         self._container = Container(working_dir=working_dir)
         self._lean_interface = LeanMCPInterface(
-            self._container, expose_complexity_floor=["core", "extended"]
+            self._container,
+            expose_complexity_floor=["core", "extended"],
+            transport="http",
         )
 
         @asynccontextmanager
@@ -213,8 +215,8 @@ class HTTPPixiShellServer:
             Handles the MCP protocol methods:
             - initialize: Creates session, returns MCP-Session-Id header
             - notifications/initialized: Acknowledges client ready
-            - tools/list: Returns the 3 lean meta-tool definitions
-            - tools/call: Executes a meta-tool (discover_tools, get_tool_spec, execute_tool)
+            - tools/list: Returns the 4 lean meta-tool definitions
+            - tools/call: Executes a meta-tool (discover_tools, get_tool_spec, execute_tool, server_info)
             """
             # Parse request body
             try:
@@ -278,7 +280,7 @@ class HTTPPixiShellServer:
                     content={"jsonrpc": "2.0", "id": req_id, "result": {}}
                 )
 
-            # tools/list - return the 3 lean meta-tool definitions
+            # tools/list - return the 4 lean meta-tool definitions
             if method == "tools/list":
                 if mcp_session_id:
                     self._touch_session(mcp_session_id)

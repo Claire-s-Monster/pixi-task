@@ -7,7 +7,7 @@ from 20-50K tokens to ~500 tokens while maintaining 100% functionality through
 dynamic discovery.
 
 Key Architecture:
-- 3 meta-tools: discover_tools, get_tool_spec, execute_tool
+- 4 meta-tools: discover_tools, get_tool_spec, execute_tool, server_info
 - Dynamic tool registry with comprehensive metadata
 - Token limiting and intelligent response optimization
 - Zero functionality loss compared to traditional MCP
@@ -15,7 +15,7 @@ Key Architecture:
 
 Context Impact:
 - Traditional MCP: ~20-50K tokens for 11 tools
-- Lean MCP: ~500 tokens for 3 meta-tools
+- Lean MCP: ~500 tokens for 4 meta-tools
 - Savings: 95%+ reduction enabling 10+ MCP servers without context saturation
 
 Business Logic:
@@ -43,12 +43,15 @@ class LeanMCPInterface:
 
     Reduces context consumption from 20-50K tokens to ~500 tokens
     while maintaining 100% functionality through dynamic discovery.
+    Exposes 4 meta-tools: discover_tools, get_tool_spec, execute_tool,
+    server_info.
     """
 
     def __init__(
         self,
         business_engine: Container,
         expose_complexity_floor: list[str] | None = None,
+        transport: str = "stdio",
     ):
         """Initialize lean interface with business logic container.
 
@@ -58,15 +61,19 @@ class LeanMCPInterface:
                 complexity field is in this list. Pass None to expose every
                 tool in the registry (stdio default). Pass ["core", "extended"]
                 to gate out specialized tools (HTTP default — see http_server.py).
+            transport: Transport label exposed via the server_info meta-tool
+                so debugging clients can tell stdio vs http instances apart.
+                Defaults to "stdio"; the HTTP entry point passes "http".
         """
         self.business_engine = business_engine
         self.expose_complexity_floor = expose_complexity_floor
+        self.transport = transport
         self.app = FastMCP("pixi-shell-lean", version="0.1.0")
 
         # Tool registry: maps tool names to implementations and metadata
         self.tool_registry = self._build_tool_registry()
 
-        # Setup the 3 meta-tools
+        # Setup the 4 meta-tools
         self._setup_meta_tools()
 
         logger.info(
@@ -431,7 +438,8 @@ class LeanMCPInterface:
         and by transport adapters (e.g., HTTPServer) that need to invoke
         meta-tool behavior without going through the FastMCP protocol layer.
 
-        name must be one of: "discover_tools", "get_tool_spec", "execute_tool".
+        name must be one of: "discover_tools", "get_tool_spec", "execute_tool",
+        "server_info".
         """
         if name == "discover_tools":
             pattern = params.get("pattern", "")
@@ -550,13 +558,16 @@ class LeanMCPInterface:
                 logger.error(f"Error executing {tool_name}: {e}")
                 return {"tool": tool_name, "status": "error", "error": str(e)}
 
+        if name == "server_info":
+            return self._server_info_impl()
+
         return {
             "error": f"Unknown meta-tool: {name}",
-            "available_meta_tools": ["discover_tools", "get_tool_spec", "execute_tool"],
+            "available_meta_tools": ["discover_tools", "get_tool_spec", "execute_tool", "server_info"],
         }
 
     def _setup_meta_tools(self):
-        """Setup the 3 meta-tools for dynamic discovery."""
+        """Setup the 4 meta-tools for dynamic discovery."""
 
         @self.app.tool(
             description=(
@@ -691,6 +702,18 @@ class LeanMCPInterface:
             """
             return self.dispatch_meta_tool("execute_tool", {"tool_name": tool_name, "parameters": parameters})
 
+        @self.app.tool(
+            description=(
+                "Return server self-identification: name, version, source URLs, "
+                "transport label, and live tool counts. "
+                "USE WHEN: filing bug reports, debugging which instance you reached, "
+                "or fingerprinting the server version."
+            )
+        )
+        def server_info() -> dict[str, Any]:
+            """Return server metadata for clients and harnesses."""
+            return self._server_info_impl()
+
     def get_app(self) -> FastMCP:
         """Get the FastMCP application instance."""
         return self.app
@@ -777,6 +800,43 @@ class LeanMCPInterface:
 
     def _pixi_init_impl(self, path: str, template: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.init_project(path, template)
+
+    def _server_info_impl(self) -> dict[str, Any]:
+        """Build the server_info response payload.
+
+        Surfaces enough metadata for clients to self-identify the server
+        and route bug reports without external lookup.
+        """
+        try:
+            from importlib.metadata import version as _pkg_version
+
+            pkg_version = _pkg_version("pixi-shell")
+        except Exception:
+            pkg_version = "0.1.0"
+
+        exposed = [
+            name
+            for name, info in self.tool_registry.items()
+            if self.expose_complexity_floor is None
+            or info.get("complexity") in self.expose_complexity_floor
+        ]
+
+        # TODO(task #8/#9): URL points at the planned MementoRC/pixi-task repo;
+        # update when the GitHub remote is created.
+        return {
+            "name": "pixi-shell",
+            "version": pkg_version,
+            "description": (
+                "A secure MCP server providing controlled access to pixi tasks "
+                "and commands, eliminating agent bash circumvention."
+            ),
+            "source_url": "https://github.com/MementoRC/pixi-task",
+            "issues_url": "https://github.com/MementoRC/pixi-task/issues",
+            "transport": self.transport,
+            "tool_count": len(exposed),
+            "registry_size": len(self.tool_registry),
+            "protocol_version": "2024-11-05",
+        }
 
     def _rattler_build_smart_impl(
         self,
