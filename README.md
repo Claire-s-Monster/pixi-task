@@ -1,66 +1,54 @@
-# ClaudeCode Shell MCP Server
+# pixi-task
 
-A secure MCP server providing controlled access to claudecode_* functions, replacing unrestricted Bash tool usage with validated, safe function execution.
+A secure MCP server providing controlled access to pixi tasks and commands, eliminating agent bash circumvention.
 
-## 🚀 Quick Start
+## Overview
+
+Exposes 11 pixi tools through 4 lean meta-tools (`discover_tools`, `get_tool_spec`, `execute_tool`, `server_info`) for ~95% context savings compared to a traditional MCP server that advertises every tool individually.
+
+Two transports are supported:
+
+- **stdio** — exposes the full registry (11 tools).
+- **HTTP** — gates the surface to `core` + `extended` complexity (7 tools); use this for daemonised deployments. Default port: `4101`.
+
+Both transports surface a `server_info` meta-tool for self-identification (name, version, transport label, live tool counts, source URLs).
+
+## Development
 
 ```bash
-# Install dependencies
-pixi install
-
-# Start the MCP server
-pixi run mcp-server
+pixi install -e quality
+pixi run test
+pixi run lint
+pixi run format
+pixi run typecheck
 ```
 
-## 🔒 Security Model
+The HTTP server can be run directly:
 
-- **Function Whitelist**: Only allows functions starting with `claudecode_`
-- **Argument Validation**: Sanitizes and validates all function arguments
-- **Timeout Protection**: Enforces execution timeouts (1-300 seconds)
-- **Audit Logging**: Comprehensive execution logging for security
-
-## 🔄 Migration Pattern
-
-Replace unsafe Bash usage with secure MCP calls:
-
-```python
-# Before (risky)
-result = Bash("claudecode_system_info load")
-
-# After (secure)  
-result = mcp__claudecode_shell__execute_claudecode_function("claudecode_system_info", ["load"])
+```bash
+pixi run http-server --port 4101
 ```
 
-## 🛠 Core Functions
+For background operation, the repo ships a systemd user unit (see `~/.config/systemd/user/pixi-shell.service` for the current installed name; this will be renamed to `pixi-task.service` in a follow-up commit).
 
-- `execute_claudecode_function()` - Secure function execution
-- `list_available_functions()` - Function discovery  
-- `validate_function_exists()` - Function validation
-- `get_execution_stats()` - Performance monitoring
-- `get_system_health()` - Health checks
+## Available Tasks
 
-## 📋 Function Categories
+The canonical task list lives in `[tool.pixi.tasks]` in `pyproject.toml`. Key tasks:
 
-- `atomic` - Atomic design and refactoring
-- `git` - Git workflow and repository operations
-- `python` - Python quality and analysis
-- `quality` - Quality assurance and testing
-- `system` - System information and resources
-- `pixi` - PIXI package management
-- `ci` - CI/CD workflows
-- `security` - Security scanning
+| Task | Purpose |
+|------|---------|
+| `test` | pytest suite (timeout 30s) |
+| `test-cov` | pytest with coverage |
+| `lint` | ruff lint (F + E9 rules) |
+| `lint-full` | full ruff lint |
+| `format` | ruff format |
+| `typecheck` | mypy on `src/` |
+| `quality` | combined lint + format-check + typecheck |
+| `http-server` | start the HTTP MCP transport |
+| `lean-server` | start the stdio MCP transport |
 
-## ⚡ Performance
+Run `pixi task list` to see every task.
 
-- Sub-100ms execution overhead vs direct Bash
-- Identical stdout/stderr/exit_code behavior
-- Full backward compatibility with existing functions
-- Comprehensive caching for function discovery
+## License
 
-## 🏗 Architecture
-
-Built using hexagonal architecture with:
-- **Core Domain**: Security models and business logic
-- **Ports**: Abstract interfaces for external dependencies  
-- **Adapters**: Concrete implementations for execution, logging, etc.
-- **FastMCP**: High-performance MCP server framework
+MIT — see [LICENSE](LICENSE).

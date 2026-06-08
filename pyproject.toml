@@ -1,5 +1,5 @@
 [project]
-name = "pixi-shell"
+name = "pixi-task"
 version = "0.1.0"
 description = "A secure MCP server providing controlled access to pixi tasks and commands, eliminating agent bash circumvention"
 requires-python = ">=3.12"
@@ -16,6 +16,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Claire-s-Monster/pixi-task"
+Repository = "https://github.com/Claire-s-Monster/pixi-task"
+Issues = "https://github.com/Claire-s-Monster/pixi-task/issues"
 
 [project.scripts]
 pixi-shell-server = "pixi_shell.server:main"
