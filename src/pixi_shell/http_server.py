@@ -291,9 +291,11 @@ class HTTPPixiShellServer:
                                 {
                                     "name": "discover_tools",
                                     "description": (
-                                        "Discover pixi environment management tools (12 total). "
+                                        "Discover available pixi tools (count varies by transport). "
                                         "USE WHEN: running pixi tasks, managing dependencies, "
-                                        "checking project status, building conda packages."
+                                        "checking project status. "
+                                        "Returns total_tools and filtered_count in the response "
+                                        "— those are the live counts."
                                     ),
                                     "inputSchema": {
                                         "type": "object",

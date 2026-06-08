@@ -50,7 +50,15 @@ class LeanMCPInterface:
         business_engine: Container,
         expose_complexity_floor: list[str] | None = None,
     ):
-        """Initialize lean interface with business logic container."""
+        """Initialize lean interface with business logic container.
+
+        Args:
+            business_engine: DI container holding pixi-shell service implementations.
+            expose_complexity_floor: Restrict surface to tools whose
+                complexity field is in this list. Pass None to expose every
+                tool in the registry (stdio default). Pass ["core", "extended"]
+                to gate out specialized tools (HTTP default — see http_server.py).
+        """
         self.business_engine = business_engine
         self.expose_complexity_floor = expose_complexity_floor
         self.app = FastMCP("pixi-shell-lean", version="0.1.0")
@@ -551,7 +559,11 @@ class LeanMCPInterface:
         """Setup the 3 meta-tools for dynamic discovery."""
 
         @self.app.tool(
-            description="Discover pixi environment management tools (12 total). USE WHEN: running pixi tasks, managing dependencies, checking project status"
+            description=(
+                "Discover available pixi tools (count varies by transport). "
+                "USE WHEN: running pixi tasks, managing dependencies, checking project status. "
+                "Returns total_tools and filtered_count in the response — those are the live counts."
+            )
         )
         def discover_tools(pattern: str = "") -> Dict[str, Any]:
             """
@@ -581,12 +593,16 @@ class LeanMCPInterface:
             Returns:
                 {
                     "available_tools": [...],
-                    "total_tools": 12,
+                    "total_tools": <n>,  # depends on transport
                     "domains": ["task", "environment", "dependency", "project", "build"]
                 }
 
+                The set of exposed tools is determined by expose_complexity_floor on this
+                interface; HTTP transport currently exposes 'core' and 'extended', stdio
+                exposes everything.
+
             Examples:
-                - discover_tools() → List all 12 tools
+                - discover_tools() → List all exposed tools (transport-filtered)
                 - discover_tools("task") → Filter task-related tools
                 - discover_tools("dependency") → Filter dependency management tools
             """
