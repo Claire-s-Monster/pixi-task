@@ -98,3 +98,30 @@ def test_server_info_version_is_a_string():
     info = _build_interface()._server_info_impl()
     assert isinstance(info["version"], str)
     assert len(info["version"]) > 0
+
+
+def test_http_server_advertises_server_info_in_tools_list():
+    """Guard: http_server.py's hand-rolled tools/list MUST include server_info.
+
+    Before the fix to NEXT_TODO Defect 4, the FastMCP @app.tool() decorator
+    registered server_info on lean_mcp_interface.py but http_server.py's
+    JSON-RPC tools/list response hardcoded only 3 meta-tools, so Claude
+    Code's MCP client never saw the new endpoint. This test ensures the
+    advertisement list stays in sync with the dispatch surface.
+    """
+    import pathlib
+
+    src = pathlib.Path(
+        "/home/memento/ClaudeCode/Servers/pixi-shell/development/src/pixi_shell/http_server.py"
+    ).read_text()
+
+    # Server_info must appear as an advertised tool name in the file.
+    # Look for the exact name-string used in the tools/list literal.
+    assert '"name": "server_info"' in src, (
+        "server_info missing from http_server.py tools/list response; "
+        "Claude Code MCP harness will not discover it"
+    )
+    # And the comment count must agree.
+    assert "4 lean meta-tool definitions" in src, (
+        "http_server.py comment still mentions 3 meta-tools; update to 4"
+    )

@@ -358,6 +358,21 @@ class HTTPPixiShellServer:
                                         "required": ["tool_name", "parameters"],
                                     },
                                 },
+                                {
+                                    "name": "server_info",
+                                    "description": (
+                                        "Return server self-identification: name, "
+                                        "version, source URLs, transport label, and "
+                                        "live tool counts. "
+                                        "USE WHEN: filing bug reports, debugging which "
+                                        "instance you reached, or fingerprinting the "
+                                        "server version."
+                                    ),
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {},
+                                    },
+                                },
                             ]
                         },
                     }
