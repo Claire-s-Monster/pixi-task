@@ -1,5 +1,5 @@
 """
-Core domain models for pixi-shell.
+Core domain models for pixi-task.
 
 These models represent the pure business domain for pixi task execution
 and environment management, replacing unrestricted bash pixi calls.

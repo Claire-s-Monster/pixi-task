@@ -14,7 +14,7 @@ Key Benefits:
 - Token-optimized responses
 
 Usage:
-    python -m pixi_shell.lean_server --repository /path/to/project
+    python -m pixi_task.lean_server --repository /path/to/project
 
 Architecture:
 - 3 meta-tools instead of 11 verbose tool definitions
@@ -35,13 +35,13 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 from core.container import Container
-from pixi_shell.lean_mcp_interface import LeanMCPInterface
+from pixi_task.lean_mcp_interface import LeanMCPInterface
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger("pixi_shell.lean_server")
+logger = logging.getLogger("pixi_task.lean_server")
 
 
 def parse_args():

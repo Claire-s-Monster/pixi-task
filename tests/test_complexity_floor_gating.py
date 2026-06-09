@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from pixi_shell.lean_mcp_interface import LeanMCPInterface
+from pixi_task.lean_mcp_interface import LeanMCPInterface
 
 
 # The expected core+extended set is the durable contract: any addition
@@ -83,7 +83,7 @@ def test_discover_tools_description_does_not_hardcode_count():
     # Falls back to scanning known places if FastMCP API changes.
     src_path = __file__.replace(
         "tests/test_complexity_floor_gating.py",
-        "src/pixi_shell/lean_mcp_interface.py",
+        "src/pixi_task/lean_mcp_interface.py",
     )
     with open(src_path) as f:
         body = f.read()

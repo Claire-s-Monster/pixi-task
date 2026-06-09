@@ -23,12 +23,12 @@ Repository = "https://github.com/Claire-s-Monster/pixi-task"
 Issues = "https://github.com/Claire-s-Monster/pixi-task/issues"
 
 [project.scripts]
-pixi-shell-server = "pixi_shell.server:main"
-pixi-shell = "pixi_shell.server:main"
-pixi-shell-lean = "pixi_shell.lean_server:main"
-pixi-shell-lean-server = "pixi_shell.lean_server:main"
-pixi-shell-http = "pixi_shell.http_lean_server:main"
-pixi-shell-http-server = "pixi_shell.http_lean_server:main"
+pixi-task-server = "pixi_task.server:main"
+pixi-task = "pixi_task.server:main"
+pixi-task-lean = "pixi_task.lean_server:main"
+pixi-task-lean-server = "pixi_task.lean_server:main"
+pixi-task-http = "pixi_task.http_lean_server:main"
+pixi-task-http-server = "pixi_task.http_lean_server:main"
 
 # NOTE: Dependencies have been moved to [tool.pixi.*] sections below
 # This ensures PIXI-only dependency management compliance
@@ -39,7 +39,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pixi_shell"]
+packages = ["src/pixi_task"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -78,7 +78,7 @@ filterwarnings = [
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["pixi_shell"]
+packages = ["pixi_task"]
 package_root = ["src"]
 namespace_packages = true
 explicit_package_bases = true
@@ -137,7 +137,7 @@ ignore = [
 "tests/**/*" = ["S", "ARG", "FBT"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pixi_shell"]
+known-first-party = ["pixi_task"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -146,12 +146,12 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.coverage.run]
-source = ["src/pixi_shell"]  # Updated to match PIXI configuration
+source = ["src/pixi_task"]  # Updated to match PIXI configuration
 branch = true
 parallel = true
 omit = [
     "tests/*",
-    "src/pixi_shell/__main__.py",
+    "src/pixi_task/__main__.py",
 ]
 
 [tool.coverage.report]
@@ -185,8 +185,8 @@ output = "coverage.json"
 
 [tool.coverage.paths]
 source = [
-    "src/pixi_shell",
-    "*/src/pixi_shell"
+    "src/pixi_task",
+    "*/src/pixi_task"
 ]
 
 # =============================================================================
@@ -319,7 +319,7 @@ dev = { cmd = "pixi run install-editable", env = { PYTHONPATH = "src" } }
 
 # Testing (ZERO-TOLERANCE QUALITY GATES) - Claude Code Integration
 test = { cmd = "pixi run -e quality pytest tests/ -v --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
-test-cov = { cmd = "pixi run -e quality pytest tests/ --cov=src/pixi_shell --cov-report=term-missing --cov-report=xml --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
+test-cov = { cmd = "pixi run -e quality pytest tests/ --cov=src/pixi_task --cov-report=term-missing --cov-report=xml --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
 test-fast = { cmd = "pixi run -e quality pytest tests/ -x --ff --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
 test-unit = { cmd = "pixi run -e quality pytest tests/unit/ -v --timeout=30", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
 test-integration = { cmd = "pixi run -e quality pytest tests/integration/ -v --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
@@ -366,7 +366,7 @@ check-all = { depends-on = ["quality", "static-analysis"] }
 # ===== TIER 3: CI/CD & DEPLOYMENT TASKS =====
 
 # CI-specific variants (optimized) - Claude Code Integration
-ci-test = { cmd = "pixi run -e ci pytest tests/ --cov=src/pixi_shell --cov-report=xml --timeout=90 --maxfail=1", env = { PIXI_SHELL_TEST = "1", ENVIRONMENT = "ci", PYTHONPATH = "src" } }
+ci-test = { cmd = "pixi run -e ci pytest tests/ --cov=src/pixi_task --cov-report=xml --timeout=90 --maxfail=1", env = { PIXI_SHELL_TEST = "1", ENVIRONMENT = "ci", PYTHONPATH = "src" } }
 ci-lint = "ruff check src/ tests/ --output-format=github --select=F,E9"
 ci-format-check = "ruff format --check src/ tests/"
 ci-typecheck = "mypy src/ --no-error-summary"  # Cleaner CI output
@@ -378,28 +378,28 @@ clean-envs = "rm -rf .pixi/envs/quality* .pixi/envs/ci .pixi/envs/dev"  # Enviro
 
 # ===== PROJECT-SPECIFIC TASKS =====
 # Pixi shell specific tasks
-shell-dev = { cmd = "python -m pixi_shell", env = { PYTHONPATH = "src" } }
-mcp-server = { cmd = "python -m pixi_shell.server", env = { PYTHONPATH = "src" } }
-server = { cmd = "python -m pixi_shell.server", env = { PYTHONPATH = "src" } }
+shell-dev = { cmd = "python -m pixi_task", env = { PYTHONPATH = "src" } }
+mcp-server = { cmd = "python -m pixi_task.server", env = { PYTHONPATH = "src" } }
+server = { cmd = "python -m pixi_task.server", env = { PYTHONPATH = "src" } }
 
 # Lean MCP server (95% context reduction) - stdio transport
-lean-server = { cmd = "python -m pixi_shell.lean_server", env = { PYTHONPATH = "src" } }
-lean-mcp-server = { cmd = "python -m pixi_shell.lean_server", env = { PYTHONPATH = "src" } }
+lean-server = { cmd = "python -m pixi_task.lean_server", env = { PYTHONPATH = "src" } }
+lean-mcp-server = { cmd = "python -m pixi_task.lean_server", env = { PYTHONPATH = "src" } }
 test-lean-mcp = { cmd = "python test_lean_mcp.py", env = { PYTHONPATH = "src" } }
 
 # HTTP/SSE transport MCP server (for Claude Code 'type: http' configuration)
-http-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
-http-lean-server = { cmd = "python -m pixi_shell.http_lean_server", env = { PYTHONPATH = "src" } }
+http-server = { cmd = "python -m pixi_task.http_lean_server", env = { PYTHONPATH = "src" } }
+http-lean-server = { cmd = "python -m pixi_task.http_lean_server", env = { PYTHONPATH = "src" } }
 
 # HTTP server management (port 4101)
 port-check = "ss -tlnp | grep :4101 || echo 'port 4101 not bound'"
 kill-server = "fuser -k 4101/tcp 2>/dev/null && echo 'killed' || echo 'no process on 4101'"
-start-http-server = "nohup python -m pixi_shell.http_lean_server --port 4101 > /tmp/pixi-shell-http.log 2>&1 &"
+start-http-server = "nohup python -m pixi_task.http_lean_server --port 4101 > /tmp/pixi-task-http.log 2>&1 &"
 verify-server-up = "sleep 1 && ss -tlnp | grep :4101"
 
 # Pixi task validation and discovery
-list-tasks = { cmd = "python -m pixi_shell.discovery", env = { PYTHONPATH = "src" } }
-validate-pixi = { cmd = "python -m pixi_shell.validator", env = { PYTHONPATH = "src" } }
+list-tasks = { cmd = "python -m pixi_task.discovery", env = { PYTHONPATH = "src" } }
+validate-pixi = { cmd = "python -m pixi_task.validator", env = { PYTHONPATH = "src" } }
 
 # ===== LEGACY/SPECIALIZED TASKS =====
 
@@ -409,7 +409,7 @@ benchmark-save = "pixi run -e quality pytest tests/ -m benchmark --benchmark-onl
 profile = "python -m memory_profiler scripts/profile_main.py"
 
 # Coverage Analysis (comprehensive - UCKN pattern)
-test-coverage = "pixi run -e quality pytest tests/ --cov=src/pixi_shell --cov-branch --cov-report=html --cov-report=xml --cov-report=json --cov-report=term-missing"
+test-coverage = "pixi run -e quality pytest tests/ --cov=src/pixi_task --cov-branch --cov-report=html --cov-report=xml --cov-report=json --cov-report=term-missing"
 coverage-report = "coverage report --format=markdown"
 coverage-html = "coverage html"
 

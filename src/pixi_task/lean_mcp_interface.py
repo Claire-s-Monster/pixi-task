@@ -19,7 +19,7 @@ Context Impact:
 - Savings: 95%+ reduction enabling 10+ MCP servers without context saturation
 
 Business Logic:
-- All existing pixi-shell functionality preserved
+- All existing pixi-task functionality preserved
 - Same Container/DI pattern for consistency
 - Enhanced with discovery metadata and optimization
 """
@@ -33,7 +33,7 @@ from fastmcp import FastMCP
 
 from core.container import Container
 
-logger = logging.getLogger("pixi_shell.lean_mcp_interface")
+logger = logging.getLogger("pixi_task.lean_mcp_interface")
 
 
 class LeanMCPInterface:
@@ -55,7 +55,7 @@ class LeanMCPInterface:
         """Initialize lean interface with business logic container.
 
         Args:
-            business_engine: DI container holding pixi-shell service implementations.
+            business_engine: DI container holding pixi-task service implementations.
             expose_complexity_floor: Restrict surface to tools whose
                 complexity field is in this list. Pass None to expose every
                 tool in the registry (stdio default). Pass ["core", "extended"]
@@ -67,7 +67,7 @@ class LeanMCPInterface:
         self.business_engine = business_engine
         self.expose_complexity_floor = expose_complexity_floor
         self.transport = transport
-        self.app = FastMCP("pixi-shell-lean", version="0.1.0")
+        self.app = FastMCP("pixi-task-lean", version="0.1.0")
 
         # Tool registry: maps tool names to implementations and metadata
         self.tool_registry = self._build_tool_registry()
@@ -591,7 +591,7 @@ class LeanMCPInterface:
         )
         def discover_tools(pattern: str = "") -> Dict[str, Any]:
             """
-            [STEP 1] Get available pixi-shell tools with minimal context consumption.
+            [STEP 1] Get available pixi-task tools with minimal context consumption.
 
             USE WHEN:
             - Starting work on a pixi-managed Python project
@@ -633,11 +633,11 @@ class LeanMCPInterface:
             return self.dispatch_meta_tool("discover_tools", {"pattern": pattern})
 
         @self.app.tool(
-            description="Get pixi-shell tool specification with schema and examples. USE WHEN: need parameter details before executing a tool"
+            description="Get pixi-task tool specification with schema and examples. USE WHEN: need parameter details before executing a tool"
         )
         def get_tool_spec(tool_name: str) -> Dict[str, Any]:
             """
-            [STEP 2] Get full specification for specific pixi-shell tool.
+            [STEP 2] Get full specification for specific pixi-task tool.
 
             DON'T SKIP THIS STEP! Get the schema before calling execute_tool()
             to understand required/optional parameters and see usage examples.
@@ -671,13 +671,13 @@ class LeanMCPInterface:
             return self.dispatch_meta_tool("get_tool_spec", {"tool_name": tool_name})
 
         @self.app.tool(
-            description="Execute pixi-shell tool with parameters. USE WHEN: running pixi tasks, managing dependencies, building packages"
+            description="Execute pixi-task tool with parameters. USE WHEN: running pixi tasks, managing dependencies, building packages"
         )
         def execute_tool(
             tool_name: str, parameters: Dict[str, Any] | str
         ) -> Dict[str, Any]:
             """
-            [STEP 3] Execute pixi-shell tool with parameters using dynamic dispatch.
+            [STEP 3] Execute pixi-task tool with parameters using dynamic dispatch.
 
             USE WHEN:
             - Running pixi tasks (test, lint, build, etc.)
@@ -829,7 +829,7 @@ class LeanMCPInterface:
         try:
             from importlib.metadata import version as _pkg_version
 
-            pkg_version = _pkg_version("pixi-shell")
+            pkg_version = _pkg_version("pixi-task")
         except Exception:
             pkg_version = "0.1.0"
 
@@ -840,10 +840,8 @@ class LeanMCPInterface:
             or info.get("complexity") in self.expose_complexity_floor
         ]
 
-        # TODO(task #8/#9): URL points at the planned MementoRC/pixi-task repo;
-        # update when the GitHub remote is created.
         return {
-            "name": "pixi-shell",
+            "name": "pixi-task",
             "version": pkg_version,
             "description": (
                 "A secure MCP server providing controlled access to pixi tasks "

@@ -6,7 +6,7 @@ sys.path.insert(0, "src")
 from core.pixi_service import PixiShellService
 print("✓ Service import OK")
 
-from pixi_shell.lean_mcp_interface import LeanMCPInterface
+from pixi_task.lean_mcp_interface import LeanMCPInterface
 print("✓ Interface import OK")
 
 # Check the method exists

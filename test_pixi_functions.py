@@ -67,7 +67,7 @@ def test_mcp_function_simulation():
     
     try:
         # Import the actual server functions
-        from pixi_shell.server import (
+        from pixi_task.server import (
             pixi_list_tasks, pixi_info, pixi_task_exists
         )
         

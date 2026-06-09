@@ -12,7 +12,7 @@ def test_server_main():
     print("=" * 50)
     
     try:
-        from pixi_shell.server import main, app
+        from pixi_task.server import main, app
         print("✅ Server imports successful")
         
         print("Main function callable:", callable(main))
@@ -59,6 +59,6 @@ if __name__ == "__main__":
     
     if success1 and success2:
         print("\n🎉 Server startup tests passed!")
-        print("   Try running: pixi run pixi-shell-server")
+        print("   Try running: pixi run pixi-task-server")
     else:
         print("\n❌ Server startup issues detected")

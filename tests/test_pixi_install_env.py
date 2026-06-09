@@ -115,7 +115,7 @@ def test_service_install_not_a_pixi_project_still_reports_env(service):
 
 def test_pixi_install_impl_accepts_environment_kwarg():
     """The MCP-layer impl must accept environment= without TypeError."""
-    from pixi_shell.lean_mcp_interface import LeanMCPInterface
+    from pixi_task.lean_mcp_interface import LeanMCPInterface
 
     business = MagicMock()
     business.pixi_service.install.return_value = {

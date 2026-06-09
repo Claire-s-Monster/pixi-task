@@ -17,11 +17,11 @@ class LoggingAdapter(LoggingPort):
 
     def __init__(self):
         # Configure main logger
-        self.logger = logging.getLogger("pixi_shell")
+        self.logger = logging.getLogger("pixi_task")
         self.logger.setLevel(logging.INFO)
 
         # Configure security logger
-        self.security_logger = logging.getLogger("pixi_shell.security")
+        self.security_logger = logging.getLogger("pixi_task.security")
         self.security_logger.setLevel(logging.INFO)
 
         # Set up console handler if not already configured

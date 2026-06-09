@@ -114,7 +114,7 @@ def test_task_exists_propagates_environment(service):
 
 def test_pixi_list_tasks_impl_accepts_environment_kwarg():
     """The MCP-layer impl must accept environment= without TypeError."""
-    from pixi_shell.lean_mcp_interface import LeanMCPInterface
+    from pixi_task.lean_mcp_interface import LeanMCPInterface
 
     business = MagicMock()
     business.pixi_service.list_tasks.return_value = {

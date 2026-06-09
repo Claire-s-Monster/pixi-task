@@ -2,7 +2,7 @@
 """
 Lean Pixi Shell MCP HTTP Server
 
-HTTP transport entry point for the pixi-shell MCP server.
+HTTP transport entry point for the pixi-task MCP server.
 Uses the lean 3-meta-tool pattern with SSE transport for Claude Code compatibility.
 
 Key Benefits:
@@ -13,8 +13,8 @@ Key Benefits:
 - GET /health: Server health monitoring
 
 Usage:
-    python -m pixi_shell.http_lean_server --port 4300
-    python -m pixi_shell.http_lean_server --repository /path/to/project --port 4300
+    python -m pixi_task.http_lean_server --port 4300
+    python -m pixi_task.http_lean_server --repository /path/to/project --port 4300
 
 MCP Client Configuration (.mcp.json):
     {
@@ -41,7 +41,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger("pixi_shell.http_lean_server")
+logger = logging.getLogger("pixi_task.http_lean_server")
 
 
 def parse_args() -> argparse.Namespace:
@@ -121,7 +121,7 @@ def main() -> None:
     logger.info("  }")
     logger.info("")
 
-    from pixi_shell.http_server import HTTPPixiShellServer
+    from pixi_task.http_server import HTTPPixiShellServer
 
     server = HTTPPixiShellServer(
         host=args.host,

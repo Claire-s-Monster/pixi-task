@@ -34,7 +34,7 @@ def validate_server_implementation():
     # Test 2: MCP server structure
     print("2. Testing MCP server structure...")
     try:
-        from pixi_shell.server import app
+        from pixi_task.server import app
         
         # Check that FastMCP app exists with correct methods
         assert hasattr(app, 'get_tools'), "FastMCP app missing get_tools method"
@@ -52,7 +52,7 @@ def validate_server_implementation():
     # Test 3: Required MCP functions availability
     print("3. Testing MCP functions availability...")
     try:
-        from pixi_shell import server
+        from pixi_task import server
         
         # Check key functions exist
         required_functions = [

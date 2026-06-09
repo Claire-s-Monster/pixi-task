@@ -10,7 +10,7 @@ def test_server_imports():
     """Test that server can be imported successfully."""
     print("Testing pixi MCP server import...")
     try:
-        from pixi_shell.server import main
+        from pixi_task.server import main
         print("✅ Server imported successfully")
         return True
     except Exception as e:
@@ -47,7 +47,7 @@ def test_server_components():
     print("Testing server components...")
     try:
         # Test that we can import FastMCP server
-        from pixi_shell.server import app
+        from pixi_task.server import app
         print("✅ FastMCP server app created successfully")
         
         # Test function availability

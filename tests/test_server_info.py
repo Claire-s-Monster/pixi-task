@@ -1,6 +1,6 @@
 """Regression tests for NEXT_TODO Defect 4: missing server_info meta-tool.
 
-Before the fix, pixi-shell had no self-identification endpoint, so
+Before the fix, pixi-task had no self-identification endpoint, so
 clients had to know its source repo and version out-of-band. These
 tests lock the response shape and transport differentiation.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 
-from pixi_shell.lean_mcp_interface import LeanMCPInterface
+from pixi_task.lean_mcp_interface import LeanMCPInterface
 
 
 REQUIRED_FIELDS = {
@@ -51,7 +51,7 @@ def test_server_info_returns_all_required_fields():
 
 def test_server_info_name_and_source_url():
     info = _build_interface()._server_info_impl()
-    assert info["name"] == "pixi-shell"
+    assert info["name"] == "pixi-task"
     assert info["source_url"].startswith("https://github.com/")
     assert info["issues_url"].startswith("https://github.com/")
 
@@ -111,7 +111,7 @@ def test_http_server_advertises_server_info_in_tools_list():
     import pathlib
 
     src = pathlib.Path(
-        "/home/memento/ClaudeCode/Servers/pixi-shell/development/src/pixi_shell/http_server.py"
+        "/home/memento/ClaudeCode/Servers/pixi-shell/development/src/pixi_task/http_server.py"
     ).read_text()
 
     # Server_info must appear as an advertised tool name in the file.

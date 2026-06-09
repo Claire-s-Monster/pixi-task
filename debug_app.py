@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, 'src')
-from pixi_shell.server import app
+from pixi_task.server import app
 
 print('App type:', type(app))
 print('App attributes:', [attr for attr in dir(app) if not attr.startswith('_')])

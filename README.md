@@ -29,7 +29,7 @@ The HTTP server can be run directly:
 pixi run http-server --port 4101
 ```
 
-For background operation, the repo ships a systemd user unit (see `~/.config/systemd/user/pixi-shell.service` for the current installed name; this will be renamed to `pixi-task.service` in a follow-up commit).
+For background operation, the repo ships a systemd user unit at `~/.config/systemd/user/pixi-task.service`.
 
 ## Available Tasks
 

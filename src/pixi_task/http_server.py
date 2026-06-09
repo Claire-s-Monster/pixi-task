@@ -14,8 +14,8 @@ Key features:
 Architecture:
     Claude Code MCP Client → HTTP GET /mcp (SSE stream, keepalive)
                            → HTTP POST /mcp (JSON-RPC 2.0 tool calls)
-                           → pixi_shell LeanMCPInterface (4 meta-tools)
-                           → PixiShellService → pixi commands
+                           → pixi_task LeanMCPInterface (4 meta-tools)
+                           → PixiTaskService → pixi commands
 """
 
 import asyncio
@@ -81,7 +81,7 @@ class HTTPPixiShellServer:
 
         # Import here to avoid circular imports at module level
         from core.container import Container
-        from pixi_shell.lean_mcp_interface import LeanMCPInterface
+        from pixi_task.lean_mcp_interface import LeanMCPInterface
 
         self._container = Container(working_dir=working_dir)
         self._lean_interface = LeanMCPInterface(
@@ -265,7 +265,7 @@ class HTTPPixiShellServer:
                                 "tools": {"listChanged": True},
                             },
                             "serverInfo": {
-                                "name": "pixi-shell",
+                                "name": "pixi-task",
                                 "version": "0.1.0",
                             },
                         },
@@ -319,7 +319,7 @@ class HTTPPixiShellServer:
                                 {
                                     "name": "get_tool_spec",
                                     "description": (
-                                        "Get full specification for a pixi-shell tool "
+                                        "Get full specification for a pixi-task tool "
                                         "including schema and examples. USE WHEN: need "
                                         "parameter details before executing a tool."
                                     ),
@@ -342,7 +342,7 @@ class HTTPPixiShellServer:
                                 {
                                     "name": "execute_tool",
                                     "description": (
-                                        "Execute a pixi-shell tool with parameters. "
+                                        "Execute a pixi-task tool with parameters. "
                                         "USE WHEN: running pixi tasks, managing dependencies, "
                                         "building conda packages."
                                     ),
@@ -473,7 +473,7 @@ class HTTPPixiShellServer:
             return JSONResponse(
                 content={
                     "status": "healthy",
-                    "server": "pixi-shell",
+                    "server": "pixi-task",
                     "version": "0.1.0",
                     "active_sessions": len(self._sessions),
                     "working_dir": self.working_dir or "current",

@@ -37,13 +37,13 @@ from core.container import Container
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("pixi_shell.server")
+logger = logging.getLogger("pixi_task.server")
 
 # Initialize dependency injection container
 container = Container()
 
 # Initialize FastMCP application
-app: FastMCP = FastMCP("pixi-shell", version="0.1.0")
+app: FastMCP = FastMCP("pixi-task", version="0.1.0")
 
 
 # =============================================================================
@@ -307,7 +307,7 @@ def pixi_init(path: str, template: str | None = None) -> dict[str, Any]:
 # =============================================================================
 
 
-@app.resource("pixi-shell://project")
+@app.resource("pixi-task://project")
 def get_project_info() -> dict[str, Any]:
     """Get current project information."""
     try:
@@ -317,7 +317,7 @@ def get_project_info() -> dict[str, Any]:
         return {"error": f"Failed to get project info: {str(e)}"}
 
 
-@app.resource("pixi-shell://tasks")
+@app.resource("pixi-task://tasks")
 def get_all_tasks() -> dict[str, Any]:
     """Get all available pixi tasks."""
     try:
@@ -327,7 +327,7 @@ def get_all_tasks() -> dict[str, Any]:
         return {"error": f"Failed to get tasks: {str(e)}"}
 
 
-@app.resource("pixi-shell://health")
+@app.resource("pixi-task://health")
 def get_server_health() -> dict[str, Any]:
     """Get pixi shell server health information."""
     try:
@@ -348,7 +348,7 @@ def get_server_health() -> dict[str, Any]:
         }
 
 
-@app.resource("pixi-shell://dependencies")
+@app.resource("pixi-task://dependencies")
 def get_project_dependencies() -> dict[str, Any]:
     """Get project dependencies information."""
     try:

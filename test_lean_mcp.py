@@ -38,8 +38,8 @@ if str(src_dir) not in sys.path:
 # Test imports
 try:
     from core.container import Container
-    from pixi_shell.lean_mcp_interface import LeanMCPInterface, apply_token_limits, truncate_intelligently
-    from pixi_shell.lean_server import create_lean_interface, validate_environment
+    from pixi_task.lean_mcp_interface import LeanMCPInterface, apply_token_limits, truncate_intelligently
+    from pixi_task.lean_server import create_lean_interface, validate_environment
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure to run from project root with 'python test_lean_mcp.py'")

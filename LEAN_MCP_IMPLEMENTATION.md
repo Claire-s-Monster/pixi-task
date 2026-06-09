@@ -42,7 +42,7 @@ Instead of exposing all tools upfront, Lean MCP exposes only **3 meta-tools**:
 ### File Structure
 
 ```
-src/pixi_shell/
+src/pixi_task/
 ├── lean_mcp_interface.py    # Core meta-tool implementation
 ├── lean_server.py           # Lean server entry point  
 ├── server.py                # Traditional server (preserved)
@@ -107,13 +107,13 @@ result = execute_tool("pixi_run_task", {
 
 ```bash
 # Lean server (3 meta-tools, 109 tokens)
-python -m pixi_shell.lean_server --repository /path/to/repo
+python -m pixi_task.lean_server --repository /path/to/repo
 
 # Via pixi tasks
 pixi run lean-server
 
 # Traditional server (11 tools, 1,513 tokens) - still available  
-python -m pixi_shell.server --repository /path/to/repo
+python -m pixi_task.server --repository /path/to/repo
 ```
 
 ### Testing the Implementation

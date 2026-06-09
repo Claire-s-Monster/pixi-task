@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple MCP client to test pixi-shell server protocol.
+Simple MCP client to test pixi-task server protocol.
 """
 
 import json
@@ -15,7 +15,7 @@ def test_mcp_server():
     
     # Start the server process
     server_cmd = [
-        sys.executable, "-m", "pixi_shell.server"
+        sys.executable, "-m", "pixi_task.server"
     ]
     
     try:
