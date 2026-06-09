@@ -12,13 +12,6 @@ from typing import Any
 
 from core.models import (
     PixiExecutionContext,
-    PixiHealthCheck,
-    PixiOperationResult,
-    PixiProjectInfo,
-    PixiTaskDefinition,
-    PixiTaskResult,
-    PixiEnvironmentInfo,
-    PixiDependency,
 )
 from core.ports import (
     PixiExecutorPort,
@@ -67,7 +60,9 @@ class PixiShellService:
 
         try:
             # Determine which directory has the pixi project (manifest_path or working_dir)
-            project_dir = str(Path(manifest_path).parent) if manifest_path else working_dir
+            project_dir = (
+                str(Path(manifest_path).parent) if manifest_path else working_dir
+            )
 
             # Validate pixi project
             if not self.pixi_project.is_pixi_project(project_dir):
@@ -83,8 +78,11 @@ class PixiShellService:
 
             # Create execution context
             context = PixiExecutionContext(
-                working_dir=working_dir, timeout=timeout, capture_output=True,
-                environment=environment, manifest_path=manifest_path,
+                working_dir=working_dir,
+                timeout=timeout,
+                capture_output=True,
+                environment=environment,
+                manifest_path=manifest_path,
             )
 
             # Execute task

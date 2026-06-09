@@ -27,7 +27,6 @@ Business Logic:
 import json
 import logging
 from functools import wraps
-from pathlib import Path
 from typing import Any, Dict
 
 from fastmcp import FastMCP
@@ -215,7 +214,11 @@ class LeanMCPInterface:
                     },
                 },
             },
-            "examples": [{}, {"working_dir": "/path/to/project"}, {"environment": "ci"}],
+            "examples": [
+                {},
+                {"working_dir": "/path/to/project"},
+                {"environment": "ci"},
+            ],
         }
 
         # TIER 2: ENVIRONMENT AND PROJECT MANAGEMENT
@@ -445,14 +448,19 @@ class LeanMCPInterface:
             pattern = params.get("pattern", "")
 
             exposed_items = [
-                (name_, info) for name_, info in self.tool_registry.items()
+                (name_, info)
+                for name_, info in self.tool_registry.items()
                 if self.expose_complexity_floor is None
                 or info.get("complexity") in self.expose_complexity_floor
             ]
 
             tools = []
             for tool_name, info in exposed_items:
-                if pattern and pattern.strip() and pattern.lower() not in tool_name.lower():
+                if (
+                    pattern
+                    and pattern.strip()
+                    and pattern.lower() not in tool_name.lower()
+                ):
                     continue
 
                 tools.append(
@@ -468,9 +476,7 @@ class LeanMCPInterface:
                 "available_tools": tools,
                 "total_tools": len(exposed_items),
                 "filtered_count": len(tools),
-                "domains": list(
-                    set(info["domain"] for _, info in exposed_items)
-                ),
+                "domains": list(set(info["domain"] for _, info in exposed_items)),
                 "complexity_levels": list(
                     set(info["complexity"] for _, info in exposed_items)
                 ),
@@ -484,7 +490,8 @@ class LeanMCPInterface:
                 not in self.expose_complexity_floor
             ):
                 exposed = [
-                    n for n, info in self.tool_registry.items()
+                    n
+                    for n, info in self.tool_registry.items()
                     if self.expose_complexity_floor is None
                     or info["complexity"] in self.expose_complexity_floor
                 ]
@@ -509,7 +516,8 @@ class LeanMCPInterface:
 
             if tool_name not in self.tool_registry:
                 exposed_names = [
-                    n for n, info in self.tool_registry.items()
+                    n
+                    for n, info in self.tool_registry.items()
                     if self.expose_complexity_floor is None
                     or info.get("complexity") in self.expose_complexity_floor
                 ]
@@ -563,7 +571,12 @@ class LeanMCPInterface:
 
         return {
             "error": f"Unknown meta-tool: {name}",
-            "available_meta_tools": ["discover_tools", "get_tool_spec", "execute_tool", "server_info"],
+            "available_meta_tools": [
+                "discover_tools",
+                "get_tool_spec",
+                "execute_tool",
+                "server_info",
+            ],
         }
 
     def _setup_meta_tools(self):
@@ -700,7 +713,9 @@ class LeanMCPInterface:
 
             DON'T KNOW PARAMETERS? Run get_tool_spec(tool_name) first.
             """
-            return self.dispatch_meta_tool("execute_tool", {"tool_name": tool_name, "parameters": parameters})
+            return self.dispatch_meta_tool(
+                "execute_tool", {"tool_name": tool_name, "parameters": parameters}
+            )
 
         @self.app.tool(
             description=(
@@ -729,8 +744,12 @@ class LeanMCPInterface:
         timeout: int = 300,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.run_task(
-            task_name, args, working_dir, timeout,
-            environment=environment, manifest_path=manifest_path,
+            task_name,
+            args,
+            working_dir,
+            timeout,
+            environment=environment,
+            manifest_path=manifest_path,
         )
 
     def _pixi_list_tasks_impl(

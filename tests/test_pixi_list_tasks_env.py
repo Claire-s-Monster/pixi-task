@@ -101,7 +101,9 @@ def test_list_tasks_propagates_environment(service):
 
 
 def test_task_exists_propagates_environment(service):
-    assert service.task_exists("test", working_dir="/tmp/proj", environment="ci") is True
+    assert (
+        service.task_exists("test", working_dir="/tmp/proj", environment="ci") is True
+    )
     service.pixi_project.get_available_tasks.assert_called_once_with(
         "/tmp/proj", environment="ci"
     )

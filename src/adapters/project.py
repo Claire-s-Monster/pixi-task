@@ -8,7 +8,6 @@ import time
 import toml
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
 
 from core.models import (
     PixiHealthCheck,

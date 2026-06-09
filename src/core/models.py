@@ -7,7 +7,6 @@ and environment management, replacing unrestricted bash pixi calls.
 
 from datetime import UTC, datetime
 from typing import Any
-import uuid
 
 from pydantic import BaseModel, Field
 
@@ -197,9 +196,18 @@ class PixiExecutionContext(BaseModel):
         default=True, description="Whether to capture stdout/stderr"
     )
     shell: bool = Field(default=False, description="Whether to execute in shell")
-    pixi_executable: str = Field(default="/home/memento/.conda/envs/ClaudeCode/bin/pixi", description="Path to pixi executable")
-    environment: str | None = Field(default=None, description="Pixi environment to run the task in (e.g. 'default', 'test', 'docs')")
-    manifest_path: str | None = Field(default=None, description="Path to pixi.toml/pyproject.toml (for running tasks from a parent project's environment)")
+    pixi_executable: str = Field(
+        default="/home/memento/.conda/envs/ClaudeCode/bin/pixi",
+        description="Path to pixi executable",
+    )
+    environment: str | None = Field(
+        default=None,
+        description="Pixi environment to run the task in (e.g. 'default', 'test', 'docs')",
+    )
+    manifest_path: str | None = Field(
+        default=None,
+        description="Path to pixi.toml/pyproject.toml (for running tasks from a parent project's environment)",
+    )
 
     def get_full_env(self) -> dict[str, str]:
         """Get full environment including additional vars."""

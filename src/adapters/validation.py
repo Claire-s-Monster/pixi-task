@@ -5,8 +5,6 @@ Provides input validation, sanitization, and security checks for pixi operations
 """
 
 import re
-import shlex
-from typing import Any
 
 from core.ports import ValidationPort
 

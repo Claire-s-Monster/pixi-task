@@ -81,11 +81,9 @@ def test_discover_tools_description_does_not_hardcode_count():
     # advertised description doesn't carry the stale '12 total' string.
     # Use the get_tool_spec path on discover_tools (a meta-tool).
     # Falls back to scanning known places if FastMCP API changes.
-    src_path = (
-        __file__.replace(
-            "tests/test_complexity_floor_gating.py",
-            "src/pixi_shell/lean_mcp_interface.py",
-        )
+    src_path = __file__.replace(
+        "tests/test_complexity_floor_gating.py",
+        "src/pixi_shell/lean_mcp_interface.py",
     )
     with open(src_path) as f:
         body = f.read()

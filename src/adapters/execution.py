@@ -5,8 +5,6 @@ Pixi execution adapter for secure task and command execution.
 import os
 import subprocess
 import time
-from datetime import UTC, datetime
-from typing import Any
 
 from core.models import (
     PixiExecutionContext,

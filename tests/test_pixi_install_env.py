@@ -129,7 +129,5 @@ def test_pixi_install_impl_accepts_environment_kwarg():
 
     result = interface._pixi_install_impl(working_dir="/tmp/proj", environment="ci")
 
-    business.pixi_service.install.assert_called_once_with(
-        "/tmp/proj", environment="ci"
-    )
+    business.pixi_service.install.assert_called_once_with("/tmp/proj", environment="ci")
     assert result["environment"] == "ci"

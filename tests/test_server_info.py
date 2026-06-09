@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from pixi_shell.lean_mcp_interface import LeanMCPInterface
 

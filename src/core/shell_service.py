@@ -10,14 +10,8 @@ from typing import Any
 
 from core.models import (
     BulkExecutionRequest,
-    BulkExecutionResult,
-    ExecutionStats,
-    FunctionDiscoveryResult,
     FunctionExecutionRequest,
-    FunctionExecutionResult,
-    FunctionValidationResult,
     SecurityAuditLog,
-    SystemHealth,
 )
 from core.ports import (
     CachePort,
@@ -195,7 +189,7 @@ class ClaudeCodeShellService:
             self.cache.cache_discovery(cache_key, discovery_result, ttl_seconds=600)
 
             self.logging.log_info(
-                f"Function discovery completed",
+                "Function discovery completed",
                 {
                     "category": category,
                     "total_functions": discovery_result.total_count,
@@ -324,7 +318,7 @@ class ClaudeCodeShellService:
 
             # Log bulk execution
             self.logging.log_info(
-                f"Bulk execution completed",
+                "Bulk execution completed",
                 {
                     "total_operations": bulk_result.total_operations,
                     "completed_operations": bulk_result.completed_operations,
@@ -442,7 +436,7 @@ class ClaudeCodeShellService:
             cleaned_entries = self.cache.invalidate_cache()
 
             self.logging.log_info(
-                f"Cache cleanup completed",
+                "Cache cleanup completed",
                 {
                     "cleaned_entries": cleaned_entries,
                     "max_age_minutes": max_age_minutes,

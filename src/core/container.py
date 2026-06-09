@@ -6,7 +6,6 @@ as the agent-cache server, ensuring consistent architecture.
 """
 
 import os
-from pathlib import Path
 
 from adapters.environment import EnvironmentAdapter
 from adapters.execution import PixiExecutionAdapter
