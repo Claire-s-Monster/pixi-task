@@ -3296,7 +3296,7 @@ packages:
 - pypi: ./
   name: pixi-task
   version: 0.1.0
-  sha256: 95d460ab3a7243f3155122c26d4897d5b3627b2f517af57543cd82997b21de84
+  sha256: 83a139b6917df4001c667a54d46c477a469e7109ba66079fdf32e94b5f02c7be
   requires_python: '>=3.12'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/platformdirs-4.9.6-pyhcf101f3_0.conda
