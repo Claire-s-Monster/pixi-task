@@ -249,6 +249,7 @@ mypy = ">=1.8.0"
 # Test utilities only available on PyPI
 toml = ">=0.10.2"        # For test fixtures
 tomli-w = ">=1.0.0"      # For writing TOML in tests
+types-toml = ">=0.10.0"  # Mypy stubs for toml
 
 # TIER 2: Extended Quality & Security
 [tool.pixi.feature.quality-extended.dependencies]
@@ -309,6 +310,9 @@ dev = {features = ["quality", "quality-extended", "quality-ci", "dev-specialized
 
 # CI environment (optimized for CI performance)
 ci = {features = ["quality", "quality-ci"], solve-group = "default"}  # ~120s install - CI optimized
+
+# Quality CI environment (matches ci-framework Build job hardcoded environment name)
+quality-ci = {features = ["quality", "quality-ci"], solve-group = "default"}
 
 # =============================================================================
 # PIXI TASKS (Unified Best Practices from All Projects)
