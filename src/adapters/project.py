@@ -473,6 +473,8 @@ class PixiProjectAdapter(PixiProjectPort):
                 is_activated=False,  # Would need more complex check
                 package_count=package_count,
                 environment_size_mb=environment_size_mb,
+                created_at=None,
+                last_modified=None,
             )
 
         except Exception as e:
@@ -532,7 +534,7 @@ class PixiProjectAdapter(PixiProjectPort):
             # Try to get from dependencies
             dependencies = config.get("dependencies", {})
             if "python" in dependencies:
-                return dependencies["python"]
+                return str(dependencies["python"])
 
             # Try to get from environment
             env_path = self._get_environment_path(path)

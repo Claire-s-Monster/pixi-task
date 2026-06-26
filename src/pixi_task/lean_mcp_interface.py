@@ -475,7 +475,7 @@ class LeanMCPInterface:
             }
 
         if name == "get_tool_spec":
-            tool_name = params.get("tool_name")
+            tool_name = params.get("tool_name") or ""
             if tool_name not in self.tool_registry or (
                 self.expose_complexity_floor is not None
                 and self.tool_registry[tool_name]["complexity"] not in self.expose_complexity_floor
@@ -502,7 +502,7 @@ class LeanMCPInterface:
             }
 
         if name == "execute_tool":
-            tool_name = params.get("tool_name")
+            tool_name = params.get("tool_name") or ""
             parameters = params.get("parameters", {})
 
             if tool_name not in self.tool_registry:
@@ -887,9 +887,6 @@ def truncate_intelligently(
     4. Metadata
     5. Verbose details (truncated)
     """
-    if not isinstance(result, dict):
-        return result
-
     # Always preserve these critical keys
     critical_keys = {
         "success",

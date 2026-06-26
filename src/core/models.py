@@ -89,8 +89,8 @@ class PixiProjectInfo(BaseModel):
 
     project_path: str = Field(description="Path to pixi project root")
     project_name: str = Field(description="Project name from pixi.toml")
-    python_version: str | None = Field(None, description="Python version in use")
-    environment_path: str | None = Field(None, description="Path to pixi environment")
+    python_version: str | None = Field(default=None, description="Python version in use")
+    environment_path: str | None = Field(default=None, description="Path to pixi environment")
     has_lock_file: bool = Field(description="Whether pixi.lock exists")
     dependencies: dict[str, str] = Field(default_factory=dict, description="Project dependencies")
     dev_dependencies: dict[str, str] = Field(
@@ -138,13 +138,13 @@ class PixiEnvironmentInfo(BaseModel):
     """Information about pixi environment"""
 
     environment_path: str = Field(description="Path to environment directory")
-    python_executable: str | None = Field(None, description="Path to Python executable")
-    python_version: str | None = Field(None, description="Python version")
+    python_executable: str | None = Field(default=None, description="Path to Python executable")
+    python_version: str | None = Field(default=None, description="Python version")
     is_activated: bool = Field(description="Whether environment is currently activated")
     package_count: int = Field(description="Number of installed packages")
     environment_size_mb: float = Field(description="Environment size in MB")
-    created_at: str | None = Field(None, description="Environment creation timestamp")
-    last_modified: str | None = Field(None, description="Last modification timestamp")
+    created_at: str | None = Field(default=None, description="Environment creation timestamp")
+    last_modified: str | None = Field(default=None, description="Last modification timestamp")
     activation_vars: dict[str, str] = Field(
         default_factory=dict, description="Environment activation variables"
     )
@@ -215,8 +215,8 @@ class PixiOperationResult(BaseModel):
 
     success: bool = Field(description="Whether operation succeeded")
     message: str = Field(description="Result message")
-    data: dict[str, Any] | None = Field(None, description="Result data")
-    error: str | None = Field(None, description="Error message if failed")
+    data: dict[str, Any] | None = Field(default=None, description="Result data")
+    error: str | None = Field(default=None, description="Error message if failed")
     execution_time: float = Field(description="Operation execution time")
     operation_type: str = Field(description="Type of operation performed")
     timestamp: str = Field(description="Operation timestamp")

@@ -6,6 +6,7 @@ as the agent-cache server, ensuring consistent architecture.
 """
 
 import os
+from typing import Any, cast
 
 from adapters.environment import EnvironmentAdapter
 from adapters.execution import PixiExecutionAdapter
@@ -26,8 +27,8 @@ class Container:
     def __init__(self, working_dir: str | None = None):
         """Initialize container with optional working directory override."""
         self._working_dir = working_dir or os.getcwd()
-        self._services = {}
-        self._adapters = {}
+        self._services: dict[str, Any] = {}
+        self._adapters: dict[str, Any] = {}
         self._initialize_adapters()
         self._initialize_services()
 
@@ -68,17 +69,17 @@ class Container:
     @property
     def pixi_service(self) -> PixiShellService:
         """Get the main pixi service."""
-        return self._services["pixi"]
+        return cast(PixiShellService, self._services["pixi"])
 
     @property
     def environment(self) -> EnvironmentAdapter:
         """Get the environment adapter."""
-        return self._adapters["environment"]
+        return cast(EnvironmentAdapter, self._adapters["environment"])
 
     @property
     def logging(self) -> LoggingAdapter:
         """Get the logging adapter."""
-        return self._adapters["logging"]
+        return cast(LoggingAdapter, self._adapters["logging"])
 
     def get_working_directory(self) -> str:
         """Get the configured working directory."""

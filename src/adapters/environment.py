@@ -143,7 +143,7 @@ class EnvironmentAdapter(EnvironmentPort):
             # Disk usage
             statvfs = os.statvfs(self.working_dir)
             total_space = statvfs.f_frsize * statvfs.f_blocks
-            free_space = statvfs.f_frsize * statvfs.f_available
+            free_space = statvfs.f_frsize * statvfs.f_bavail
             used_space = total_space - free_space
             disk_usage_percent = (used_space / total_space * 100) if total_space > 0 else 0
             resource_usage["disk_usage_percent"] = disk_usage_percent

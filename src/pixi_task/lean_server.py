@@ -223,14 +223,8 @@ def demonstrate_lean_workflow():
     """
     logger.info("DEMONSTRATING LEAN MCP WORKFLOW:")
 
-    # Initialize
-    container = Container()
-    lean_interface = LeanMCPInterface(container)
-
     # Step 1: Tool Discovery (minimal context)
     logger.info("\nStep 1: Tool Discovery (~150 tokens)")
-    lean_interface._setup_meta_tools.__wrapped__  # Access meta-tools directly for demo
-
     # This would be the actual workflow pattern:
     # discovery_result = lean_interface.app.tools["discover_tools"](pattern="task")
     logger.info("Agent calls: discover_tools(pattern='task')")

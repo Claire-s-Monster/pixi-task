@@ -60,7 +60,7 @@ class PixiProjectPort(ABC):
         pass
 
     @abstractmethod
-    def get_available_tasks(self, path: str) -> dict[str, str]:
+    def get_available_tasks(self, path: str, environment: str | None = None) -> dict[str, str]:
         """Get available pixi tasks with descriptions."""
         pass
 
