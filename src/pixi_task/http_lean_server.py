@@ -28,7 +28,6 @@ MCP Client Configuration (.mcp.json):
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -89,7 +88,9 @@ def main() -> None:
     args = parse_args()
     setup_logging(args.log_level)
 
-    # Resolve working directory
+    # Resolve working directory. We do NOT os.chdir: the server process CWD is
+    # unrelated to the caller's project. The repository becomes the resolver
+    # base inside the service container (passed via working_dir below).
     working_dir = None
     if args.repository:
         repo_path = Path(args.repository).resolve()
@@ -97,8 +98,7 @@ def main() -> None:
             logger.error("Repository path does not exist: %s", repo_path)
             sys.exit(1)
         working_dir = str(repo_path)
-        os.chdir(working_dir)
-        logger.info("Working directory set to: %s", working_dir)
+        logger.info("Project base set to: %s", working_dir)
 
     logger.info("=" * 70)
     logger.info("LEAN PIXI SHELL MCP HTTP SERVER")

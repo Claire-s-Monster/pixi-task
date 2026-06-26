@@ -35,11 +35,36 @@ class PixiShellService:
         pixi_project: PixiProjectPort,
         logging: LoggingPort,
         validation: ValidationPort,
+        default_working_dir: str | None = None,
     ):
         self.pixi_executor = pixi_executor
         self.pixi_project = pixi_project
         self.logging = logging
         self.validation = validation
+        # Base directory used to resolve relative/omitted working_dir values.
+        # An MCP server's process CWD is unrelated to the caller's project, so
+        # callers pass an absolute working_dir per call. When omitted we fall
+        # back to this configured base (the launch --repository), or os.getcwd()
+        # when no base was configured. We deliberately do NOT os.chdir at startup.
+        self.default_working_dir = default_working_dir
+
+    def _resolve_working_dir(self, working_dir: str | None) -> str:
+        """Resolve a caller-supplied working_dir to a usable directory path.
+
+        - ``None``        -> the configured base (default_working_dir) or os.getcwd()
+        - absolute path   -> used as-is
+        - relative path   -> resolved against the configured base / os.getcwd()
+
+        The server process is never ``chdir``-ed, so relative paths resolve
+        against the configured project base rather than the server's install dir.
+        """
+        base = self.default_working_dir or os.getcwd()
+        if working_dir is None:
+            return base
+        path = Path(working_dir)
+        if path.is_absolute():
+            return working_dir
+        return str(Path(base) / path)
 
     def run_task(
         self,
@@ -56,7 +81,7 @@ class PixiShellService:
         Returns: {"success": bool, "stdout": str, "stderr": str, "exit_code": int, "execution_time": float}
         """
         start_time = time.time()
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             # Determine which directory has the pixi project (manifest_path or working_dir)
@@ -143,7 +168,7 @@ class PixiShellService:
 
         Returns: {"tasks": {"test": "Run pytest", "lint": "Run ruff", ...}, "environment": ...}
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -187,7 +212,7 @@ class PixiShellService:
 
         Returns: True if task exists, False otherwise
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -216,7 +241,7 @@ class PixiShellService:
         Returns: {"success": bool, "stdout": str, "stderr": str, "execution_time": float, "environment": str | None}
         """
         start_time = time.time()
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -277,7 +302,7 @@ class PixiShellService:
 
         Returns: Project information including dependencies, tasks, environment status
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -325,7 +350,7 @@ class PixiShellService:
         Returns: Command execution result
         """
         start_time = time.time()
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -392,7 +417,7 @@ class PixiShellService:
 
         Returns: Operation result
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -439,7 +464,7 @@ class PixiShellService:
 
         Returns: Operation result
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -481,7 +506,7 @@ class PixiShellService:
 
         Returns: Dependencies information
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             if not self.pixi_project.is_pixi_project(working_dir):
@@ -514,7 +539,7 @@ class PixiShellService:
 
         Returns: Project health and status information
         """
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         try:
             health_check = self.pixi_project.check_health(working_dir)
@@ -613,7 +638,7 @@ class PixiShellService:
         import subprocess
 
         start_time = time.time()
-        working_dir = working_dir or os.getcwd()
+        working_dir = self._resolve_working_dir(working_dir)
 
         # Build command
         cmd = ["rattler-build", "build", "-r", recipe_path]

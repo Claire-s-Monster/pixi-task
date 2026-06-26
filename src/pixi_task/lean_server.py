@@ -113,7 +113,6 @@ def validate_environment(repository_path: str | None = None) -> tuple[bool, list
 def main():
     """Main entry point for the lean MCP server."""
     args = None
-    original_cwd = os.getcwd()
 
     try:
         args = parse_args()
@@ -132,20 +131,19 @@ def main():
                 logger.warning("  - %s", issue)
             logger.warning("Continuing with limited functionality...")
 
-        # Set working directory if provided
-        if args.repository:
-            if os.path.exists(args.repository):
-                os.chdir(args.repository)
-                logger.info("Changed working directory to: %s", args.repository)
-            else:
-                logger.error("Repository path does not exist: %s", args.repository)
-                sys.exit(1)
+        # Validate repository path if provided. We do NOT os.chdir here: the
+        # server process CWD is unrelated to the caller's project. Instead the
+        # repository becomes the resolver base inside the service container, so
+        # relative/omitted working_dir values resolve against it.
+        if args.repository and not os.path.exists(args.repository):
+            logger.error("Repository path does not exist: %s", args.repository)
+            sys.exit(1)
 
-        logger.info("Working directory: %s", os.getcwd())
+        logger.info("Project base: %s", args.repository or os.getcwd())
 
         # Initialize business logic engine
         logger.info("Initializing business logic container...")
-        business_engine = Container()
+        business_engine = Container(working_dir=args.repository)
 
         # Create lean interface with 3 meta-tools
         logger.info("Creating lean MCP interface...")
@@ -222,10 +220,7 @@ def main():
     except Exception as e:
         logger.error("Server error: %s", e)
         raise
-    finally:
-        # Restore original working directory
-        if args and args.repository and os.path.exists(original_cwd):
-            os.chdir(original_cwd)
+    # (no working-directory restore needed: the process CWD is never changed)
 
 
 def demonstrate_lean_workflow():
@@ -241,9 +236,7 @@ def demonstrate_lean_workflow():
 
     # Step 1: Tool Discovery (minimal context)
     logger.info("\nStep 1: Tool Discovery (~150 tokens)")
-    discovery_tools = (
-        lean_interface._setup_meta_tools.__wrapped__
-    )  # Access meta-tools directly for demo
+    lean_interface._setup_meta_tools.__wrapped__  # Access meta-tools directly for demo
 
     # This would be the actual workflow pattern:
     # discovery_result = lean_interface.app.tools["discover_tools"](pattern="task")

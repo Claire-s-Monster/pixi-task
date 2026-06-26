@@ -64,6 +64,7 @@ class Container:
             pixi_project=self._adapters["project"],
             logging=self._adapters["logging"],
             validation=self._adapters["validation"],
+            default_working_dir=self._working_dir,
         )
 
     @property
