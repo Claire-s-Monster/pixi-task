@@ -56,6 +56,7 @@ addopts = [
     "--timeout=120",  # 2 minutes per test (CI Framework)
     "--timeout-method=thread",  # More robust for async
     "-ra",  # Show all test results
+    "--ignore=.pixi",
 ]
 timeout = 120  # Default timeout for all tests
 timeout_method = "thread"
@@ -113,9 +114,13 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
 [tool.ruff]
 target-version = "py312"
-line-length = 88
+line-length = 100
 
 [tool.ruff.lint]
 select = [
