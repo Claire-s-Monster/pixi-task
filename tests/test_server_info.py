@@ -27,9 +27,7 @@ REQUIRED_FIELDS = {
 
 
 def _build_interface(transport="stdio", floor=None):
-    return LeanMCPInterface(
-        MagicMock(), expose_complexity_floor=floor, transport=transport
-    )
+    return LeanMCPInterface(MagicMock(), expose_complexity_floor=floor, transport=transport)
 
 
 def test_server_info_default_transport_is_stdio():

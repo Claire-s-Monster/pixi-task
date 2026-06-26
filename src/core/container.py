@@ -34,9 +34,7 @@ class Container:
     def _initialize_adapters(self) -> None:
         """Initialize all adapter instances."""
         # Environment adapter
-        self._adapters["environment"] = EnvironmentAdapter(
-            working_dir=self._working_dir
-        )
+        self._adapters["environment"] = EnvironmentAdapter(working_dir=self._working_dir)
 
         # Logging adapter
         self._adapters["logging"] = LoggingAdapter()

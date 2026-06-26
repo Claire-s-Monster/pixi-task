@@ -242,9 +242,7 @@ class ClaudeCodeShellService:
             validation_result = self.function_executor.validate_function(function_name)
 
             # Cache the result
-            self.cache.cache_function_info(
-                function_name, validation_result, ttl_seconds=300
-            )
+            self.cache.cache_function_info(function_name, validation_result, ttl_seconds=300)
 
             self.logging.log_info(
                 f"Function validated: {function_name}",
@@ -264,9 +262,7 @@ class ClaudeCodeShellService:
 
         except Exception as e:
             error_msg = f"Function validation failed: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"function_name": function_name, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"function_name": function_name, "error": str(e)})
 
             return {
                 "exists": False,
@@ -276,9 +272,7 @@ class ClaudeCodeShellService:
                 "error": str(e),
             }
 
-    def execute_bulk_functions(
-        self, operations: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+    def execute_bulk_functions(self, operations: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Execute multiple claudecode functions with atomic semantics.
 
@@ -369,9 +363,7 @@ class ClaudeCodeShellService:
                 "total_executions": stats.total_executions,
                 "successful_executions": stats.successful_executions,
                 "failed_executions": stats.failed_executions,
-                "success_rate": (
-                    stats.successful_executions / max(stats.total_executions, 1)
-                )
+                "success_rate": (stats.successful_executions / max(stats.total_executions, 1))
                 * 100,
                 "average_execution_time": stats.average_execution_time,
                 "most_used_functions": stats.most_used_functions,

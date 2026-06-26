@@ -63,9 +63,7 @@ class ValidationAdapter(ValidationPort):
                 arg = arg[:1000]
 
             # Remove null bytes and control characters
-            sanitized_arg = "".join(
-                char for char in arg if ord(char) >= 32 or char in ["\t", "\n"]
-            )
+            sanitized_arg = "".join(char for char in arg if ord(char) >= 32 or char in ["\t", "\n"])
 
             # Check for dangerous patterns and reject if found
             for pattern in self.compiled_patterns:

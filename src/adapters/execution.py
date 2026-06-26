@@ -110,9 +110,7 @@ class PixiExecutionAdapter(PixiExecutorPort):
                 command_line=f"pixi run {task_name} {' '.join(args)}",
             )
 
-    def execute_command(
-        self, command: list[str], context: PixiExecutionContext
-    ) -> PixiTaskResult:
+    def execute_command(self, command: list[str], context: PixiExecutionContext) -> PixiTaskResult:
         """Execute arbitrary command in pixi environment."""
         start_time = time.time()
 

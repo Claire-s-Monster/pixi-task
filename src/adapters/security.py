@@ -49,9 +49,7 @@ class SecurityAuditAdapter(SecurityAuditPort, MetricsPort):
         cutoff_time = time.time() - (hours * 3600)
 
         # Filter logs by time period
-        recent_logs = [
-            log for log in self.execution_logs if float(log.timestamp) > cutoff_time
-        ]
+        recent_logs = [log for log in self.execution_logs if float(log.timestamp) > cutoff_time]
 
         total_executions = len(recent_logs)
         successful_executions = sum(1 for log in recent_logs if log.success)
@@ -138,9 +136,7 @@ class SecurityAuditAdapter(SecurityAuditPort, MetricsPort):
 
         # Keep only recent times (last 1000 per function)
         if len(self.execution_times[function_name]) > 1000:
-            self.execution_times[function_name] = self.execution_times[function_name][
-                -500:
-            ]
+            self.execution_times[function_name] = self.execution_times[function_name][-500:]
 
     def record_execution_success(self, function_name: str) -> None:
         """Record a successful function execution."""

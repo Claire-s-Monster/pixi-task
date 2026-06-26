@@ -92,18 +92,14 @@ class PixiProjectInfo(BaseModel):
     python_version: str | None = Field(None, description="Python version in use")
     environment_path: str | None = Field(None, description="Path to pixi environment")
     has_lock_file: bool = Field(description="Whether pixi.lock exists")
-    dependencies: dict[str, str] = Field(
-        default_factory=dict, description="Project dependencies"
-    )
+    dependencies: dict[str, str] = Field(default_factory=dict, description="Project dependencies")
     dev_dependencies: dict[str, str] = Field(
         default_factory=dict, description="Development dependencies"
     )
     available_tasks: dict[str, str] = Field(
         default_factory=dict, description="Available pixi tasks"
     )
-    channels: list[str] = Field(
-        default_factory=list, description="Configured conda channels"
-    )
+    channels: list[str] = Field(default_factory=list, description="Configured conda channels")
     platforms: list[str] = Field(default_factory=list, description="Target platforms")
     environment_status: str = Field(description="Environment sync status")
     last_updated: str = Field(description="Last project update timestamp")
@@ -172,9 +168,7 @@ class PixiDependency(BaseModel):
     channel: str | None = Field(None, description="Conda channel")
     build: str | None = Field(None, description="Build string")
     is_dev: bool = Field(default=False, description="Whether this is a dev dependency")
-    is_pypi: bool = Field(
-        default=False, description="Whether this is a PyPI dependency"
-    )
+    is_pypi: bool = Field(default=False, description="Whether this is a PyPI dependency")
 
     def to_spec_string(self) -> str:
         """Convert to pixi dependency specification string."""
@@ -192,9 +186,7 @@ class PixiExecutionContext(BaseModel):
     environment_vars: dict[str, str] = Field(
         default_factory=dict, description="Additional environment variables"
     )
-    capture_output: bool = Field(
-        default=True, description="Whether to capture stdout/stderr"
-    )
+    capture_output: bool = Field(default=True, description="Whether to capture stdout/stderr")
     shell: bool = Field(default=False, description="Whether to execute in shell")
     pixi_executable: str = Field(
         default="/home/memento/.conda/envs/ClaudeCode/bin/pixi",
@@ -275,9 +267,7 @@ class PixiHealthCheck(BaseModel):
     environment_synced: bool = Field(description="Whether environment is up to date")
     lock_file_exists: bool = Field(description="Whether pixi.lock exists")
     issues: list[str] = Field(default_factory=list, description="Identified issues")
-    recommendations: list[str] = Field(
-        default_factory=list, description="Recommendations"
-    )
+    recommendations: list[str] = Field(default_factory=list, description="Recommendations")
     project_path: str = Field(description="Path that was checked")
     checked_at: str = Field(description="Health check timestamp")
 
@@ -332,9 +322,7 @@ class SystemHealth(BaseModel):
     recent_executions: int = Field(description="Recent task executions count")
     error_rate: float = Field(description="Error rate percentage")
     average_response_time: float = Field(description="Average response time in seconds")
-    security_alerts: list[str] = Field(
-        default_factory=list, description="Security alerts"
-    )
+    security_alerts: list[str] = Field(default_factory=list, description="Security alerts")
     resource_usage: dict[str, Any] = Field(
         default_factory=dict, description="System resource usage"
     )

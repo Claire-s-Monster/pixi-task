@@ -60,9 +60,7 @@ class PixiProjectAdapter(PixiProjectPort):
                     with open(pixi_toml_path, "r") as f:
                         config = toml.load(f)
                 except Exception as e:
-                    self.logging.log_error(
-                        f"Failed to parse pixi.toml: {str(e)}", {"path": path}
-                    )
+                    self.logging.log_error(f"Failed to parse pixi.toml: {str(e)}", {"path": path})
                     return PixiProjectInfo.create_empty(path)
             elif pyproject_toml_path.exists():
                 try:
@@ -131,14 +129,10 @@ class PixiProjectAdapter(PixiProjectPort):
             )
 
         except Exception as e:
-            self.logging.log_error(
-                f"Failed to get project info: {str(e)}", {"path": path}
-            )
+            self.logging.log_error(f"Failed to get project info: {str(e)}", {"path": path})
             return PixiProjectInfo.create_empty(path)
 
-    def get_available_tasks(
-        self, path: str, environment: str | None = None
-    ) -> dict[str, str]:
+    def get_available_tasks(self, path: str, environment: str | None = None) -> dict[str, str]:
         """Get available pixi tasks with descriptions."""
         try:
             if not self.is_pixi_project(path):
@@ -336,9 +330,7 @@ class PixiProjectAdapter(PixiProjectPort):
             pixi_executable_found = self._check_pixi_executable()
             if not pixi_executable_found:
                 issues.append("Pixi executable not found")
-                recommendations.append(
-                    "Install pixi: curl -fsSL https://pixi.sh/install.sh | bash"
-                )
+                recommendations.append("Install pixi: curl -fsSL https://pixi.sh/install.sh | bash")
 
             # Check lock file
             lock_file_exists = False
@@ -380,9 +372,7 @@ class PixiProjectAdapter(PixiProjectPort):
                 ["Check project configuration and pixi installation"],
             )
 
-    def init_project(
-        self, path: str, template: str | None = None
-    ) -> PixiOperationResult:
+    def init_project(self, path: str, template: str | None = None) -> PixiOperationResult:
         """Initialize a new pixi project."""
         start_time = time.time()
 
@@ -461,9 +451,7 @@ class PixiProjectAdapter(PixiProjectPort):
             environment_size_mb = 0.0
             try:
                 total_size = sum(
-                    f.stat().st_size
-                    for f in Path(environment_path).rglob("*")
-                    if f.is_file()
+                    f.stat().st_size for f in Path(environment_path).rglob("*") if f.is_file()
                 )
                 environment_size_mb = total_size / (1024 * 1024)
             except Exception:
@@ -488,9 +476,7 @@ class PixiProjectAdapter(PixiProjectPort):
             )
 
         except Exception as e:
-            self.logging.log_error(
-                f"Failed to get environment info: {str(e)}", {"path": path}
-            )
+            self.logging.log_error(f"Failed to get environment info: {str(e)}", {"path": path})
             return PixiEnvironmentInfo.create_not_found()
 
     def _get_environment_path(self, path: str) -> str | None:
@@ -569,9 +555,7 @@ class PixiProjectAdapter(PixiProjectPort):
     def _check_pixi_executable(self) -> bool:
         """Check if pixi executable is available."""
         try:
-            result = subprocess.run(
-                ["pixi", "--version"], capture_output=True, timeout=10
-            )
+            result = subprocess.run(["pixi", "--version"], capture_output=True, timeout=10)
             return result.returncode == 0
         except Exception:
             return False

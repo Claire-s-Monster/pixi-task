@@ -96,9 +96,7 @@ def validate_environment(repository_path: str | None = None) -> tuple[bool, list
     import shutil
 
     if not shutil.which("pixi"):
-        issues.append(
-            "Pixi executable not found in PATH - some functionality may be limited"
-        )
+        issues.append("Pixi executable not found in PATH - some functionality may be limited")
 
     # Validate business engine can initialize
     try:
@@ -157,9 +155,7 @@ def main():
             if status.get("pixi_executable_found", False):
                 logger.info("✓ Pixi executable found and available")
             else:
-                logger.warning(
-                    "⚠ Pixi executable not found - install pixi for full functionality"
-                )
+                logger.warning("⚠ Pixi executable not found - install pixi for full functionality")
 
             if status.get("is_pixi_project", False):
                 logger.info("✓ Running in pixi project directory")
@@ -180,8 +176,7 @@ def main():
         estimated_traditional_tokens = tool_count * 2000  # Conservative estimate
         estimated_lean_tokens = 500  # Meta-tool pattern
         savings_percent = (
-            (estimated_traditional_tokens - estimated_lean_tokens)
-            / estimated_traditional_tokens
+            (estimated_traditional_tokens - estimated_lean_tokens) / estimated_traditional_tokens
         ) * 100
 
         logger.info("")
@@ -193,9 +188,7 @@ def main():
         )
         logger.info("  Lean MCP: ~%d tokens (3 meta-tools)", estimated_lean_tokens)
         logger.info("  Savings: %.1f%% reduction", savings_percent)
-        logger.info(
-            "  Benefit: Can now support 10+ MCP servers without context saturation"
-        )
+        logger.info("  Benefit: Can now support 10+ MCP servers without context saturation")
         logger.info("")
 
         logger.info("LEAN SERVER READY:")

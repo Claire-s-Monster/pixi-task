@@ -402,22 +402,16 @@ def main():
     # Validate system setup
     try:
         health = container.shell_service.get_system_health()
-        logger.info(
-            "System health check: %s functions available", health["available_functions"]
-        )
+        logger.info("System health check: %s functions available", health["available_functions"])
 
         if not health["healthy"]:
-            logger.warning(
-                "System health issues detected: %s", health.get("security_alerts", [])
-            )
+            logger.warning("System health issues detected: %s", health.get("security_alerts", []))
     except Exception as e:
         logger.error("Failed to perform initial health check: %s", e)
         # Continue anyway - some functions might still work
 
     logger.info("ClaudeCode Shell MCP Server ready for secure function execution")
-    logger.info(
-        "Security model: claudecode_* function whitelist with argument validation"
-    )
+    logger.info("Security model: claudecode_* function whitelist with argument validation")
 
     app.run()
 

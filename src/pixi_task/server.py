@@ -231,9 +231,7 @@ def pixi_add_dependency(
     dependency support, ensuring proper project configuration management.
     """
     try:
-        return container.pixi_service.add_dependency(
-            package, channel, is_dev, working_dir
-        )
+        return container.pixi_service.add_dependency(package, channel, is_dev, working_dir)
     except Exception as e:
         logger.error(f"Error in pixi_add_dependency: {e}")
         return {"success": False, "message": f"Failed to add dependency: {str(e)}"}
@@ -399,9 +397,7 @@ def main():
         if status.get("pixi_executable_found", False):
             logger.info("Pixi executable found and available")
         else:
-            logger.warning(
-                "Pixi executable not found - install pixi for full functionality"
-            )
+            logger.warning("Pixi executable not found - install pixi for full functionality")
 
         if status.get("is_pixi_project", False):
             logger.info("Running in pixi project directory")

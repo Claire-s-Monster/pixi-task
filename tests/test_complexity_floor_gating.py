@@ -87,9 +87,7 @@ def test_discover_tools_description_does_not_hardcode_count():
     )
     with open(src_path) as f:
         body = f.read()
-    assert "(12 total)" not in body, (
-        "Stale '12 total' string found in lean_mcp_interface.py"
-    )
+    assert "(12 total)" not in body, "Stale '12 total' string found in lean_mcp_interface.py"
     assert "Discover available pixi tools" in body, (
         "Expected new discover_tools description text not found"
     )
