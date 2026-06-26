@@ -55,10 +55,7 @@ class PixiProjectAdapter(PixiProjectPort):
             pyproject_toml_path = Path(path) / "pyproject.toml"
 
             config = {}
-            config_file = ""
-
             if pixi_toml_path.exists():
-                config_file = str(pixi_toml_path)
                 try:
                     with open(pixi_toml_path, "r") as f:
                         config = toml.load(f)
@@ -68,7 +65,6 @@ class PixiProjectAdapter(PixiProjectPort):
                     )
                     return PixiProjectInfo.create_empty(path)
             elif pyproject_toml_path.exists():
-                config_file = str(pyproject_toml_path)
                 try:
                     with open(pyproject_toml_path, "r") as f:
                         full_config = toml.load(f)
@@ -514,7 +510,6 @@ class PixiProjectAdapter(PixiProjectPort):
 
             # Fallback: construct standard environment path
             # This is typically in .pixi/envs/default
-            project_name = Path(path).name
             env_path = Path(path) / ".pixi" / "envs" / "default"
 
             if env_path.exists():

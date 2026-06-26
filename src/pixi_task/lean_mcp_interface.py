@@ -934,7 +934,6 @@ def truncate_intelligently(
             preserved[key] = result[key]
 
     # Second pass: add core data with limits
-    remaining_budget = max_tokens - len(json.dumps(preserved))
 
     for key, value in result.items():
         if key in critical_keys:

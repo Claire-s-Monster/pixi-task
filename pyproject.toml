@@ -327,13 +327,13 @@ test-e2e = { cmd = "pixi run -e quality pytest tests/e2e/ -v --timeout=120", env
 test-property = { cmd = "pixi run -e quality pytest tests/ -m property -v --timeout=60", env = { PIXI_SHELL_TEST = "1", PYTHONPATH = "src" } }
 
 # Quality Gates (CRITICAL - MUST PASS) - PREVENT CI FAILURES
-lint = "ruff check src/ tests/ --select=F,E9"        # Critical violations only
-lint-full = "ruff check src/ tests/"                  # Full linting
-lint-fix = "ruff check --fix src/ tests/"             # Auto-fix violations
-format = "ruff format src/ tests/"                    # Format code
-format-check = "ruff format --check src/ tests/"      # Format validation
-format-diff = "ruff format --diff src/ tests/"        # Show formatting changes
-typecheck = "mypy src/"
+lint = "pixi run -e quality ruff check src/ tests/ --select=F,E9"        # Critical violations only
+lint-full = "pixi run -e quality ruff check src/ tests/"                  # Full linting
+lint-fix = "pixi run -e quality ruff check --fix src/ tests/"             # Auto-fix violations
+format = "pixi run -e quality ruff format src/ tests/"                    # Format code
+format-check = "pixi run -e quality ruff format --check src/ tests/"      # Format validation
+format-diff = "pixi run -e quality ruff format --diff src/ tests/"        # Show formatting changes
+typecheck = "pixi run -e quality mypy src/"
 
 # Combined Quality Check - MANDATORY BEFORE COMMIT
 quality = { depends-on = ["test", "lint", "typecheck"] }

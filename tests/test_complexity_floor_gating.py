@@ -76,7 +76,7 @@ def test_specialized_tool_visible_under_stdio_floor():
 
 def test_discover_tools_description_does_not_hardcode_count():
     """Regression: description string must not contain a hardcoded total."""
-    iface = _build_interface(None)
+    _build_interface(None)
     # The FastMCP app stores tool metadata; we check the dispatcher's
     # advertised description doesn't carry the stale '12 total' string.
     # Use the get_tool_spec path on discover_tools (a meta-tool).
