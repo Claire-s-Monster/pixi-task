@@ -85,9 +85,7 @@ class PixiShellService:
 
         try:
             # Determine which directory has the pixi project (manifest_path or working_dir)
-            project_dir = (
-                str(Path(manifest_path).parent) if manifest_path else working_dir
-            )
+            project_dir = str(Path(manifest_path).parent) if manifest_path else working_dir
 
             # Validate pixi project
             if not self.pixi_project.is_pixi_project(project_dir):
@@ -195,9 +193,7 @@ class PixiShellService:
 
         except Exception as e:
             error_msg = f"Failed to list tasks: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"working_dir": working_dir, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"working_dir": working_dir, "error": str(e)})
 
             return {"tasks": {}, "environment": environment, "error": error_msg}
 
@@ -284,9 +280,7 @@ class PixiShellService:
             execution_time = time.time() - start_time
             error_msg = f"Pixi install failed: {str(e)}"
 
-            self.logging.log_error(
-                error_msg, {"working_dir": working_dir, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"working_dir": working_dir, "error": str(e)})
 
             return {
                 "success": False,
@@ -331,9 +325,7 @@ class PixiShellService:
 
         except Exception as e:
             error_msg = f"Failed to get project info: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"working_dir": working_dir, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"working_dir": working_dir, "error": str(e)})
 
             return {"is_pixi_project": False, "error": error_msg}
 
@@ -426,9 +418,7 @@ class PixiShellService:
                     "message": f"Directory {working_dir} is not a pixi project",
                 }
 
-            result = self.pixi_project.add_dependency(
-                package, channel, is_dev, working_dir
-            )
+            result = self.pixi_project.add_dependency(package, channel, is_dev, working_dir)
 
             self.logging.log_info(
                 "Dependency added",
@@ -527,9 +517,7 @@ class PixiShellService:
 
         except Exception as e:
             error_msg = f"Failed to list dependencies: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"working_dir": working_dir, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"working_dir": working_dir, "error": str(e)})
 
             return {"dependencies": {}, "dev_dependencies": {}, "error": error_msg}
 
@@ -558,17 +546,13 @@ class PixiShellService:
 
         except Exception as e:
             error_msg = f"Failed to get project status: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"working_dir": working_dir, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"working_dir": working_dir, "error": str(e)})
 
             return {
                 "is_pixi_project": False,
                 "is_healthy": False,
                 "issues": [error_msg],
-                "recommendations": [
-                    "Check if pixi is installed and directory contains pixi.toml"
-                ],
+                "recommendations": ["Check if pixi is installed and directory contains pixi.toml"],
                 "error": error_msg,
             }
 
@@ -594,9 +578,7 @@ class PixiShellService:
 
         except Exception as e:
             error_msg = f"Failed to initialize project: {str(e)}"
-            self.logging.log_error(
-                error_msg, {"path": path, "template": template, "error": str(e)}
-            )
+            self.logging.log_error(error_msg, {"path": path, "template": template, "error": str(e)})
 
             return {"success": False, "message": error_msg, "project_path": path}
 
@@ -745,9 +727,7 @@ class PixiShellService:
 
             # Get last 50 lines of output for context
             output_lines = output.strip().split("\n")
-            output_tail = (
-                "\n".join(output_lines[-50:]) if len(output_lines) > 50 else output
-            )
+            output_tail = "\n".join(output_lines[-50:]) if len(output_lines) > 50 else output
 
             # Deduplicate errors and warnings
             errors = list(dict.fromkeys(errors))[:20]  # Max 20 unique errors

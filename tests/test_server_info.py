@@ -27,9 +27,7 @@ REQUIRED_FIELDS = {
 
 
 def _build_interface(transport="stdio", floor=None):
-    return LeanMCPInterface(
-        MagicMock(), expose_complexity_floor=floor, transport=transport
-    )
+    return LeanMCPInterface(MagicMock(), expose_complexity_floor=floor, transport=transport)
 
 
 def test_server_info_default_transport_is_stdio():
@@ -110,8 +108,11 @@ def test_http_server_advertises_server_info_in_tools_list():
     """
     import pathlib
 
-    src = pathlib.Path(
-        "/home/memento/ClaudeCode/Servers/pixi-shell/development/src/pixi_task/http_server.py"
+    src = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "src"
+        / "pixi_task"
+        / "http_server.py"
     ).read_text()
 
     # Server_info must appear as an advertised tool name in the file.
