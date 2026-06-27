@@ -105,12 +105,8 @@ def main() -> None:
     logger.info("Transport: HTTP/SSE | Context: ~500 tokens (95%+ reduction)")
     logger.info("=" * 70)
     logger.info("Endpoints:")
-    logger.info(
-        "  GET  http://%s:%d/mcp  (SSE stream, keepalive)", args.host, args.port
-    )
-    logger.info(
-        "  POST http://%s:%d/mcp  (JSON-RPC 2.0 tool calls)", args.host, args.port
-    )
+    logger.info("  GET  http://%s:%d/mcp  (SSE stream, keepalive)", args.host, args.port)
+    logger.info("  POST http://%s:%d/mcp  (JSON-RPC 2.0 tool calls)", args.host, args.port)
     logger.info("  GET  http://%s:%d/health", args.host, args.port)
     logger.info("")
     logger.info("MCP Client Configuration (.mcp.json):")

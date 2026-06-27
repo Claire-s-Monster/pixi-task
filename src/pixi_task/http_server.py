@@ -165,9 +165,7 @@ class HTTPPixiShellServer:
         # before connecting. Return 404 without JSON body so CC skips auth.
         @self.app.get("/.well-known/{path:path}")
         async def well_known_stub(path: str):
-            return JSONResponse(
-                status_code=404, content={"error": "OAuth not supported"}
-            )
+            return JSONResponse(status_code=404, content={"error": "OAuth not supported"})
 
         @self.app.api_route("/register", methods=["GET", "POST", "PUT", "DELETE"])
         async def register_stub():
@@ -279,9 +277,7 @@ class HTTPPixiShellServer:
             if method == "notifications/initialized":
                 if mcp_session_id:
                     self._touch_session(mcp_session_id)
-                return JSONResponse(
-                    content={"jsonrpc": "2.0", "id": req_id, "result": {}}
-                )
+                return JSONResponse(content={"jsonrpc": "2.0", "id": req_id, "result": {}})
 
             # tools/list - return the 4 lean meta-tool definitions
             if method == "tools/list":
@@ -432,18 +428,12 @@ class HTTPPixiShellServer:
                         content={
                             "jsonrpc": "2.0",
                             "id": req_id,
-                            "result": {
-                                "content": [
-                                    {"type": "text", "text": json.dumps(result)}
-                                ]
-                            },
+                            "result": {"content": [{"type": "text", "text": json.dumps(result)}]},
                         }
                     )
 
                 except Exception as e:
-                    logger.error(
-                        "Tool execution failed: %s: %s", tool_name, e, exc_info=True
-                    )
+                    logger.error("Tool execution failed: %s: %s", tool_name, e, exc_info=True)
                     return JSONResponse(
                         content={
                             "jsonrpc": "2.0",
@@ -482,9 +472,7 @@ class HTTPPixiShellServer:
 
     def run(self) -> None:
         """Run the HTTP server with uvicorn."""
-        logger.info(
-            "Starting Pixi Shell HTTP MCP Server on %s:%d", self.host, self.port
-        )
+        logger.info("Starting Pixi Shell HTTP MCP Server on %s:%d", self.host, self.port)
         uvicorn.run(
             self.app,
             host=self.host,

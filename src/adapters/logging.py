@@ -29,9 +29,7 @@ class LoggingAdapter(LoggingPort):
             handler = logging.StreamHandler(sys.stdout)
             handler.setLevel(logging.INFO)
 
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
 
             self.logger.addHandler(handler)
@@ -40,9 +38,7 @@ class LoggingAdapter(LoggingPort):
     def log_info(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log an informational message."""
         if context:
-            enhanced_message = (
-                f"{message} | Context: {json.dumps(context, default=str)}"
-            )
+            enhanced_message = f"{message} | Context: {json.dumps(context, default=str)}"
         else:
             enhanced_message = message
 
@@ -51,9 +47,7 @@ class LoggingAdapter(LoggingPort):
     def log_warning(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log a warning message."""
         if context:
-            enhanced_message = (
-                f"{message} | Context: {json.dumps(context, default=str)}"
-            )
+            enhanced_message = f"{message} | Context: {json.dumps(context, default=str)}"
         else:
             enhanced_message = message
 
@@ -62,33 +56,27 @@ class LoggingAdapter(LoggingPort):
     def log_error(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log an error message."""
         if context:
-            enhanced_message = (
-                f"{message} | Context: {json.dumps(context, default=str)}"
-            )
+            enhanced_message = f"{message} | Context: {json.dumps(context, default=str)}"
         else:
             enhanced_message = message
 
         self.logger.error(enhanced_message)
 
-    def log_task_execution(
-        self, task_name: str, context: dict[str, Any] | None = None
-    ) -> None:
+    def log_task_execution(self, task_name: str, context: dict[str, Any] | None = None) -> None:
         """Log a pixi task execution event."""
         if context:
-            enhanced_message = f"TASK EXECUTED: {task_name} | Context: {json.dumps(context, default=str)}"
+            enhanced_message = (
+                f"TASK EXECUTED: {task_name} | Context: {json.dumps(context, default=str)}"
+            )
         else:
             enhanced_message = f"TASK EXECUTED: {task_name}"
 
         self.logger.info(enhanced_message)
 
-    def log_security_event(
-        self, event: str, context: dict[str, Any] | None = None
-    ) -> None:
+    def log_security_event(self, event: str, context: dict[str, Any] | None = None) -> None:
         """Log a security-related event."""
         if context:
-            enhanced_event = (
-                f"SECURITY: {event} | Context: {json.dumps(context, default=str)}"
-            )
+            enhanced_event = f"SECURITY: {event} | Context: {json.dumps(context, default=str)}"
         else:
             enhanced_event = f"SECURITY: {event}"
 

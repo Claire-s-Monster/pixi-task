@@ -31,9 +31,7 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
-    def execute_command(
-        self, command: list[str], context: PixiExecutionContext
-    ) -> PixiTaskResult:
+    def execute_command(self, command: list[str], context: PixiExecutionContext) -> PixiTaskResult:
         """Execute arbitrary command in pixi environment."""
         pass
 
@@ -62,7 +60,7 @@ class PixiProjectPort(ABC):
         pass
 
     @abstractmethod
-    def get_available_tasks(self, path: str) -> dict[str, str]:
+    def get_available_tasks(self, path: str, environment: str | None = None) -> dict[str, str]:
         """Get available pixi tasks with descriptions."""
         pass
 
@@ -90,9 +88,7 @@ class PixiProjectPort(ABC):
         pass
 
     @abstractmethod
-    def init_project(
-        self, path: str, template: str | None = None
-    ) -> PixiOperationResult:
+    def init_project(self, path: str, template: str | None = None) -> PixiOperationResult:
         """Initialize a new pixi project."""
         pass
 
@@ -121,9 +117,7 @@ class LoggingPort(ABC):
         pass
 
     @abstractmethod
-    def log_task_execution(
-        self, task_name: str, context: dict[str, Any] | None = None
-    ) -> None:
+    def log_task_execution(self, task_name: str, context: dict[str, Any] | None = None) -> None:
         """Log a pixi task execution event."""
         pass
 
@@ -230,8 +224,6 @@ class PixiConfigPort(ABC):
         pass
 
     @abstractmethod
-    def parse_dependencies(
-        self, project_path: str
-    ) -> tuple[dict[str, str], dict[str, str]]:
+    def parse_dependencies(self, project_path: str) -> tuple[dict[str, str], dict[str, str]]:
         """Parse dependencies and dev-dependencies from pixi.toml."""
         pass

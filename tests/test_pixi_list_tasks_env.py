@@ -93,20 +93,14 @@ def service():
 
 def test_list_tasks_propagates_environment(service):
     result = service.list_tasks(working_dir="/tmp/proj", environment="ci")
-    service.pixi_project.get_available_tasks.assert_called_once_with(
-        "/tmp/proj", environment="ci"
-    )
+    service.pixi_project.get_available_tasks.assert_called_once_with("/tmp/proj", environment="ci")
     assert result["tasks"] == {"test": "pytest"}
     assert result["environment"] == "ci"
 
 
 def test_task_exists_propagates_environment(service):
-    assert (
-        service.task_exists("test", working_dir="/tmp/proj", environment="ci") is True
-    )
-    service.pixi_project.get_available_tasks.assert_called_once_with(
-        "/tmp/proj", environment="ci"
-    )
+    assert service.task_exists("test", working_dir="/tmp/proj", environment="ci") is True
+    service.pixi_project.get_available_tasks.assert_called_once_with("/tmp/proj", environment="ci")
 
 
 # --- Layer 4: MCP impl smoke ---
@@ -125,7 +119,5 @@ def test_pixi_list_tasks_impl_accepts_environment_kwarg():
 
     result = interface._pixi_list_tasks_impl(working_dir="/tmp/proj", environment="ci")
 
-    business.pixi_service.list_tasks.assert_called_once_with(
-        "/tmp/proj", environment="ci"
-    )
+    business.pixi_service.list_tasks.assert_called_once_with("/tmp/proj", environment="ci")
     assert result["environment"] == "ci"

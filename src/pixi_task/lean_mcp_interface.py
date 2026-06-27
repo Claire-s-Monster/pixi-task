@@ -75,9 +75,7 @@ class LeanMCPInterface:
         # Setup the 4 meta-tools
         self._setup_meta_tools()
 
-        logger.info(
-            "Lean MCP Interface initialized with %d tools", len(self.tool_registry)
-        )
+        logger.info("Lean MCP Interface initialized with %d tools", len(self.tool_registry))
         logger.info("Context consumption: ~500 tokens (vs 20-50K for traditional MCP)")
 
     def _build_tool_registry(self) -> Dict[str, Dict[str, Any]]:
@@ -456,11 +454,7 @@ class LeanMCPInterface:
 
             tools = []
             for tool_name, info in exposed_items:
-                if (
-                    pattern
-                    and pattern.strip()
-                    and pattern.lower() not in tool_name.lower()
-                ):
+                if pattern and pattern.strip() and pattern.lower() not in tool_name.lower():
                     continue
 
                 tools.append(
@@ -477,17 +471,14 @@ class LeanMCPInterface:
                 "total_tools": len(exposed_items),
                 "filtered_count": len(tools),
                 "domains": list(set(info["domain"] for _, info in exposed_items)),
-                "complexity_levels": list(
-                    set(info["complexity"] for _, info in exposed_items)
-                ),
+                "complexity_levels": list(set(info["complexity"] for _, info in exposed_items)),
             }
 
         if name == "get_tool_spec":
-            tool_name = params.get("tool_name")
+            tool_name = params.get("tool_name") or ""
             if tool_name not in self.tool_registry or (
                 self.expose_complexity_floor is not None
-                and self.tool_registry[tool_name]["complexity"]
-                not in self.expose_complexity_floor
+                and self.tool_registry[tool_name]["complexity"] not in self.expose_complexity_floor
             ):
                 exposed = [
                     n
@@ -511,7 +502,7 @@ class LeanMCPInterface:
             }
 
         if name == "execute_tool":
-            tool_name = params.get("tool_name")
+            tool_name = params.get("tool_name") or ""
             parameters = params.get("parameters", {})
 
             if tool_name not in self.tool_registry:
@@ -530,8 +521,7 @@ class LeanMCPInterface:
 
             if (
                 self.expose_complexity_floor is not None
-                and self.tool_registry[tool_name]["complexity"]
-                not in self.expose_complexity_floor
+                and self.tool_registry[tool_name]["complexity"] not in self.expose_complexity_floor
             ):
                 return {
                     "tool": tool_name,
@@ -554,9 +544,7 @@ class LeanMCPInterface:
                 return {
                     "tool": tool_name,
                     "status": "error",
-                    "error": (
-                        f"parameters must be a mapping, got {type(parameters).__name__}"
-                    ),
+                    "error": (f"parameters must be a mapping, got {type(parameters).__name__}"),
                 }
 
             try:
@@ -673,9 +661,7 @@ class LeanMCPInterface:
         @self.app.tool(
             description="Execute pixi-task tool with parameters. USE WHEN: running pixi tasks, managing dependencies, building packages"
         )
-        def execute_tool(
-            tool_name: str, parameters: Dict[str, Any] | str
-        ) -> Dict[str, Any]:
+        def execute_tool(tool_name: str, parameters: Dict[str, Any] | str) -> Dict[str, Any]:
             """
             [STEP 3] Execute pixi-task tool with parameters using dynamic dispatch.
 
@@ -757,9 +743,7 @@ class LeanMCPInterface:
         working_dir: str | None = None,
         environment: str | None = None,
     ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.list_tasks(
-            working_dir, environment=environment
-        )
+        return self.business_engine.pixi_service.list_tasks(working_dir, environment=environment)
 
     def _pixi_task_exists_impl(
         self,
@@ -782,16 +766,12 @@ class LeanMCPInterface:
         working_dir: str | None = None,
         environment: str | None = None,
     ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.install(
-            working_dir, environment=environment
-        )
+        return self.business_engine.pixi_service.install(working_dir, environment=environment)
 
     def _pixi_info_impl(self, working_dir: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.get_info(working_dir)
 
-    def _pixi_project_status_impl(
-        self, working_dir: str | None = None
-    ) -> dict[str, Any]:
+    def _pixi_project_status_impl(self, working_dir: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.get_project_status(working_dir)
 
     def _pixi_add_dependency_impl(
@@ -808,13 +788,9 @@ class LeanMCPInterface:
     def _pixi_remove_dependency_impl(
         self, package: str, is_dev: bool = False, working_dir: str | None = None
     ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.remove_dependency(
-            package, is_dev, working_dir
-        )
+        return self.business_engine.pixi_service.remove_dependency(package, is_dev, working_dir)
 
-    def _pixi_list_dependencies_impl(
-        self, working_dir: str | None = None
-    ) -> dict[str, Any]:
+    def _pixi_list_dependencies_impl(self, working_dir: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.list_dependencies(working_dir)
 
     def _pixi_init_impl(self, path: str, template: str | None = None) -> dict[str, Any]:
@@ -889,9 +865,7 @@ def apply_token_limits(result: Any, tool_name: str) -> Any:
 
     if isinstance(result, dict):
         serialized = json.dumps(result, indent=2)
-        if (
-            len(serialized) <= MAX_TOKENS * 4
-        ):  # Rough token estimate (4 chars per token)
+        if len(serialized) <= MAX_TOKENS * 4:  # Rough token estimate (4 chars per token)
             return result
 
         # Intelligent truncation logic
@@ -913,9 +887,6 @@ def truncate_intelligently(
     4. Metadata
     5. Verbose details (truncated)
     """
-    if not isinstance(result, dict):
-        return result
-
     # Always preserve these critical keys
     critical_keys = {
         "success",
@@ -958,7 +929,5 @@ def truncate_intelligently(
         if current_size > max_tokens * 3:  # Conservative check
             break
 
-    preserved["_token_limited"] = (
-        f"Response optimized for context efficiency by {tool_name}"
-    )
+    preserved["_token_limited"] = f"Response optimized for context efficiency by {tool_name}"
     return preserved

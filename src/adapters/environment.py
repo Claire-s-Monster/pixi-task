@@ -51,9 +51,7 @@ class EnvironmentAdapter(EnvironmentPort):
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
         try:
-            result = subprocess.run(
-                ["pixi", "--version"], capture_output=True, timeout=10
-            )
+            result = subprocess.run(["pixi", "--version"], capture_output=True, timeout=10)
             return result.returncode == 0
         except Exception:
             return False
@@ -89,9 +87,7 @@ class EnvironmentAdapter(EnvironmentPort):
         try:
             # Check pixi availability
             pixi_available = self.check_pixi_available()
-            available_functions = (
-                14 if pixi_available else 0
-            )  # Count of pixi MCP functions
+            available_functions = 14 if pixi_available else 0  # Count of pixi MCP functions
 
             # Basic resource checks
             resource_usage = self._get_resource_usage()
@@ -105,9 +101,7 @@ class EnvironmentAdapter(EnvironmentPort):
 
             security_alerts = []
             if not pixi_available:
-                security_alerts.append(
-                    "Pixi executable not found - install pixi for functionality"
-                )
+                security_alerts.append("Pixi executable not found - install pixi for functionality")
 
             return SystemHealth(
                 healthy=healthy,
@@ -149,11 +143,9 @@ class EnvironmentAdapter(EnvironmentPort):
             # Disk usage
             statvfs = os.statvfs(self.working_dir)
             total_space = statvfs.f_frsize * statvfs.f_blocks
-            free_space = statvfs.f_frsize * statvfs.f_available
+            free_space = statvfs.f_frsize * statvfs.f_bavail
             used_space = total_space - free_space
-            disk_usage_percent = (
-                (used_space / total_space * 100) if total_space > 0 else 0
-            )
+            disk_usage_percent = (used_space / total_space * 100) if total_space > 0 else 0
             resource_usage["disk_usage_percent"] = disk_usage_percent
         except Exception:
             resource_usage["disk_usage_percent"] = 0.0
