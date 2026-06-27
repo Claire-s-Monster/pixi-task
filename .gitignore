@@ -44,3 +44,6 @@ logs/
 
 # Local MCP server configuration (project-specific paths)
 .mcp.json
+
+# Claude Code agent scripts and local configuration (absolute symlinks, not portable)
+.claude/
