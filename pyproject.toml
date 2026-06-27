@@ -379,9 +379,6 @@ check-all = { depends-on = ["quality", "static-analysis"] }
 
 # CI-specific variants (optimized) - Claude Code Integration
 ci-test = { cmd = "pixi run -e ci pytest tests/ --cov=src/pixi_task --cov-report=xml --timeout=90 --maxfail=1", env = { PIXI_SHELL_TEST = "1", ENVIRONMENT = "ci", PYTHONPATH = "src" } }
-ci-lint = "ruff check src/ tests/ --output-format=github --select=F,E9"
-ci-format-check = "ruff format --check src/ tests/"
-ci-typecheck = "mypy src/ --no-error-summary"  # Cleaner CI output
 
 # Build & Deploy
 build = "python -m build --no-isolation"
