@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from core.models import (
+    CONFLICTING_PIXI_ENV_VARS,
     PixiExecutionContext,
     PixiTaskResult,
 )
@@ -304,10 +305,16 @@ class PixiExecutionAdapter(PixiExecutorPort):
         start_time = time.time()
 
         try:
-            # Ensure environment includes system environment
-            full_env = os.environ.copy()
-            if env:
-                full_env.update(env)
+            # The caller (get_full_env) already supplies a complete, sanitized
+            # environment. Re-copying os.environ here would re-introduce the
+            # pixi activation vars stripped upstream (issue #6), so only fall
+            # back to a (sanitized) os.environ copy when no env is provided.
+            if env is not None:
+                full_env = env
+            else:
+                full_env = os.environ.copy()
+                for var in CONFLICTING_PIXI_ENV_VARS:
+                    full_env.pop(var, None)
 
             # Execute command
             result = subprocess.run(

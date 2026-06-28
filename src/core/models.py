@@ -178,6 +178,26 @@ class PixiDependency(BaseModel):
         return spec
 
 
+# Pixi activation variables that the MCP server may inherit from its own
+# parent environment (e.g. it was started from inside another pixi/conda
+# project). If these leak into a task's child environment, ``pixi run`` resolves
+# against the *server's* project instead of the requested ``working_dir`` and
+# skips activating the target environment -- producing exit-127
+# "command not found" failures for cross-project task execution. Stripping them
+# forces pixi to cleanly re-discover and activate the target project. See
+# https://github.com/Claire-s-Monster/pixi-task/issues/6
+CONFLICTING_PIXI_ENV_VARS = (
+    "PIXI_PROJECT_MANIFEST",
+    "PIXI_PROJECT_ROOT",
+    "PIXI_PROJECT_NAME",
+    "PIXI_PROJECT_VERSION",
+    "PIXI_ENVIRONMENT_NAME",
+    "PIXI_ENVIRONMENT_PLATFORMS",
+    "PIXI_IN_SHELL",
+    "PIXI_PROMPT",
+)
+
+
 class PixiExecutionContext(BaseModel):
     """Context for pixi command execution"""
 
@@ -202,10 +222,17 @@ class PixiExecutionContext(BaseModel):
     )
 
     def get_full_env(self) -> dict[str, str]:
-        """Get full environment including additional vars."""
+        """Get full environment including additional vars.
+
+        Strips pixi activation variables inherited from the server's own
+        environment so that ``pixi run`` re-activates the *target* project's
+        environment instead of the server's (issue #6).
+        """
         import os
 
         env = os.environ.copy()
+        for var in CONFLICTING_PIXI_ENV_VARS:
+            env.pop(var, None)
         env.update(self.environment_vars)
         return env
 
