@@ -18,6 +18,7 @@ from pixi_task.lean_mcp_interface import LeanMCPInterface
 # test forces a deliberate update.
 HTTP_EXPOSED = {
     "pixi_run_task",
+    "pixi_task_status",
     "pixi_list_tasks",
     "pixi_task_exists",
     "pixi_install",

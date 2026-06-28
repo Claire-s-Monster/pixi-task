@@ -5,12 +5,14 @@ Pixi execution adapter for secure task and command execution.
 import os
 import subprocess
 import time
+from typing import Any
 
 from core.models import (
     PixiExecutionContext,
     PixiTaskResult,
 )
 from core.ports import PixiExecutorPort, LoggingPort, ValidationPort, EnvironmentPort
+from adapters.background import BackgroundJobManager
 
 
 class PixiExecutionAdapter(PixiExecutorPort):
@@ -21,10 +23,12 @@ class PixiExecutionAdapter(PixiExecutorPort):
         environment: EnvironmentPort,
         logging: LoggingPort,
         validation: ValidationPort,
+        job_manager: BackgroundJobManager | None = None,
     ):
         self.environment = environment
         self.logging = logging
         self.validation = validation
+        self.jobs = job_manager or BackgroundJobManager()
 
     def run_task(
         self, task_name: str, args: list[str], context: PixiExecutionContext
@@ -226,6 +230,54 @@ class PixiExecutionAdapter(PixiExecutorPort):
                 working_dir=context.working_dir,
                 command_line="pixi install",
             )
+
+    def run_task_background(
+        self,
+        task_name: str,
+        args: list[str],
+        context: PixiExecutionContext,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch a pixi task in a detached background process (issue #4)."""
+        if not self.validation.validate_task_name(task_name):
+            return {
+                "status": "error",
+                "task_name": task_name,
+                "error": f"Invalid task name: {task_name}",
+            }
+
+        safe_args = self.validation.validate_arguments(args)
+
+        command = [context.pixi_executable, "run"]
+        if context.manifest_path:
+            command.extend(["--manifest-path", context.manifest_path])
+        if context.environment:
+            command.extend(["--environment", context.environment])
+        command.append(task_name)
+        command.extend(safe_args)
+        command_line = " ".join(command)
+
+        self.logging.log_info(
+            "Launching background pixi task",
+            {
+                "task_name": task_name,
+                "command": command_line,
+                "working_dir": context.working_dir,
+            },
+        )
+
+        return self.jobs.launch(
+            command=command,
+            working_dir=context.working_dir,
+            env=context.get_full_env(),
+            task_name=task_name,
+            command_line=command_line,
+            output_file=output_file,
+        )
+
+    def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
+        """Return the status and output tail of a background job."""
+        return self.jobs.status(job_id, tail_lines)
 
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
