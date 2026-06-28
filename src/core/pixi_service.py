@@ -156,6 +156,83 @@ class PixiShellService:
                 "working_dir": working_dir,
             }
 
+    def run_task_background(
+        self,
+        task_name: str,
+        args: list[str] | None = None,
+        working_dir: str | None = None,
+        environment: str | None = None,
+        manifest_path: str | None = None,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch a pixi task in the background and return a job handle.
+
+        For long-running tasks (e.g. a full pytest suite) that would otherwise
+        exceed the MCP transport window. Poll completion via get_job_status().
+        """
+        working_dir = self._resolve_working_dir(working_dir)
+
+        try:
+            project_dir = str(Path(manifest_path).parent) if manifest_path else working_dir
+
+            if not self.pixi_project.is_pixi_project(project_dir):
+                return {
+                    "status": "error",
+                    "task_name": task_name,
+                    "working_dir": working_dir,
+                    "error": f"Directory {project_dir} is not a pixi project (no pixi.toml found)",
+                }
+
+            context = PixiExecutionContext(
+                working_dir=working_dir,
+                capture_output=True,
+                environment=environment,
+                manifest_path=manifest_path,
+            )
+
+            result = self.pixi_executor.run_task_background(
+                task_name, args or [], context, output_file=output_file
+            )
+
+            self.logging.log_info(
+                f"Pixi task launched in background: {task_name}",
+                {
+                    "job_id": result.get("job_id"),
+                    "status": result.get("status"),
+                    "working_dir": working_dir,
+                },
+            )
+            return result
+
+        except Exception as e:
+            error_msg = f"Background task launch failed: {str(e)}"
+            self.logging.log_error(
+                error_msg,
+                {
+                    "task_name": task_name,
+                    "args": args,
+                    "working_dir": working_dir,
+                    "error": str(e),
+                },
+            )
+            return {
+                "status": "error",
+                "task_name": task_name,
+                "working_dir": working_dir,
+                "error": error_msg,
+            }
+
+    def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
+        """Return the status and output tail of a background pixi task."""
+        try:
+            return self.pixi_executor.get_job_status(job_id, tail_lines)
+        except Exception as e:
+            return {
+                "status": "unknown",
+                "job_id": job_id,
+                "error": f"Failed to get job status: {str(e)}",
+            }
+
     def list_tasks(
         self,
         working_dir: str | None = None,

@@ -128,6 +128,15 @@ class LeanMCPInterface:
                         "default": 300,
                         "description": "Timeout in seconds",
                     },
+                    "background": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Run the task detached in the background and return a job_id immediately instead of blocking. Use for long-running tasks (e.g. a full pytest suite) that exceed the MCP transport window. Poll results with pixi_task_status(job_id) or read the returned output_file.",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "When background=true, write combined stdout/stderr to this path. Defaults to an auto-generated per-job log file whose path is returned in the response.",
+                    },
                 },
                 "required": ["task_name"],
             },
@@ -136,6 +145,33 @@ class LeanMCPInterface:
                 {"task_name": "lint", "args": ["--fix"]},
                 {"task_name": "test", "environment": "test"},
                 {"task_name": "build", "timeout": 600},
+                {"task_name": "test", "environment": "ci", "background": True},
+            ],
+        }
+
+        registry["pixi_task_status"] = {
+            "implementation": self._wrap_tool(self._pixi_task_status_impl),
+            "description": "Check the status and output of a background pixi task launched via pixi_run_task(background=true)",
+            "domain": "task",
+            "complexity": "core",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job id returned by pixi_run_task(background=true)",
+                    },
+                    "tail_lines": {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Number of trailing output lines to include (0 = full output)",
+                    },
+                },
+                "required": ["job_id"],
+            },
+            "examples": [
+                {"job_id": "a1b2c3d4e5f6"},
+                {"job_id": "a1b2c3d4e5f6", "tail_lines": 200},
             ],
         }
 
@@ -728,7 +764,18 @@ class LeanMCPInterface:
         environment: str | None = None,
         manifest_path: str | None = None,
         timeout: int = 300,
+        background: bool = False,
+        output_file: str | None = None,
     ) -> dict[str, Any]:
+        if background:
+            return self.business_engine.pixi_service.run_task_background(
+                task_name,
+                args,
+                working_dir,
+                environment=environment,
+                manifest_path=manifest_path,
+                output_file=output_file,
+            )
         return self.business_engine.pixi_service.run_task(
             task_name,
             args,
@@ -737,6 +784,13 @@ class LeanMCPInterface:
             environment=environment,
             manifest_path=manifest_path,
         )
+
+    def _pixi_task_status_impl(
+        self,
+        job_id: str,
+        tail_lines: int = 50,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.get_job_status(job_id, tail_lines)
 
     def _pixi_list_tasks_impl(
         self,

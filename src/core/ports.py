@@ -41,6 +41,27 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
+    def run_task_background(
+        self,
+        task_name: str,
+        args: list[str],
+        context: PixiExecutionContext,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch a pixi task in a detached background process.
+
+        Returns a job-handle dict (job_id, output_file, status, ...) immediately
+        without waiting for completion. For long-running tasks that would exceed
+        the MCP transport window.
+        """
+        pass
+
+    @abstractmethod
+    def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
+        """Return the status and output tail of a background job."""
+        pass
+
+    @abstractmethod
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
         pass
