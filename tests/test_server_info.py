@@ -109,10 +109,7 @@ def test_http_server_advertises_server_info_in_tools_list():
     import pathlib
 
     src = (
-        pathlib.Path(__file__).resolve().parents[1]
-        / "src"
-        / "pixi_task"
-        / "http_server.py"
+        pathlib.Path(__file__).resolve().parents[1] / "src" / "pixi_task" / "http_server.py"
     ).read_text()
 
     # Server_info must appear as an advertised tool name in the file.
