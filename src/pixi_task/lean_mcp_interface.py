@@ -463,7 +463,7 @@ class LeanMCPInterface:
                 return apply_token_limits(result, tool_func.__name__)
             except Exception as e:
                 logger.error(f"Error in {tool_func.__name__}: {e}")
-                return {"error": str(e), "tool": tool_func.__name__}
+                raise
 
         return wrapper
 
