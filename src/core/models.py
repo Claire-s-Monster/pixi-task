@@ -5,6 +5,8 @@ These models represent the pure business domain for pixi task execution
 and environment management, replacing unrestricted bash pixi calls.
 """
 
+import os
+import shutil
 from datetime import UTC, datetime
 from typing import Any
 
@@ -198,6 +200,26 @@ CONFLICTING_PIXI_ENV_VARS = (
 )
 
 
+def _default_pixi_executable() -> str:
+    """Resolve the pixi binary to invoke.
+
+    ``shutil.which`` is deliberately the *last* resort: this server normally
+    runs from a systemd user unit whose PATH contains only its own pixi
+    environment plus the system directories, so ``which("pixi")`` returns
+    ``None`` there even when pixi is installed. See
+    https://github.com/Claire-s-Monster/pixi-task/issues/14
+    """
+    override = os.environ.get("PIXI_TASK_PIXI_BIN")
+    if override:
+        return override
+
+    candidate = os.path.expanduser("~/.pixi/bin/pixi")
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+        return candidate
+
+    return shutil.which("pixi") or "pixi"
+
+
 class PixiExecutionContext(BaseModel):
     """Context for pixi command execution"""
 
@@ -209,7 +231,7 @@ class PixiExecutionContext(BaseModel):
     capture_output: bool = Field(default=True, description="Whether to capture stdout/stderr")
     shell: bool = Field(default=False, description="Whether to execute in shell")
     pixi_executable: str = Field(
-        default="/home/memento/.conda/envs/ClaudeCode/bin/pixi",
+        default_factory=_default_pixi_executable,
         description="Path to pixi executable",
     )
     environment: str | None = Field(
@@ -227,12 +249,23 @@ class PixiExecutionContext(BaseModel):
         Strips pixi activation variables inherited from the server's own
         environment so that ``pixi run`` re-activates the *target* project's
         environment instead of the server's (issue #6).
-        """
-        import os
 
+        Also guarantees the directory holding ``pixi_executable`` is on PATH.
+        The outer pixi is invoked by absolute path, but task bodies routinely
+        contain a nested ``pixi run -e <env> ...`` which resolves through PATH;
+        under systemd that PATH has no pixi at all, so those bodies died with
+        exit 127 (issue #14).
+        """
         env = os.environ.copy()
         for var in CONFLICTING_PIXI_ENV_VARS:
             env.pop(var, None)
+
+        pixi_dir = os.path.dirname(self.pixi_executable)
+        if pixi_dir:
+            entries = [e for e in env.get("PATH", "").split(os.pathsep) if e]
+            if pixi_dir not in entries:
+                env["PATH"] = os.pathsep.join([pixi_dir, *entries])
+
         env.update(self.environment_vars)
         return env
 
