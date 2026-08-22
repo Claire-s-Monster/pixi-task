@@ -14,6 +14,7 @@ from core.models import (
     PixiOperationResult,
     PixiProjectInfo,
     PixiEnvironmentInfo,
+    _default_pixi_executable,
 )
 from core.ports import PixiProjectPort, LoggingPort, EnvironmentPort
 
@@ -557,9 +558,11 @@ class PixiProjectAdapter(PixiProjectPort):
     def _check_pixi_executable(self) -> bool:
         """Check if pixi executable is available."""
         try:
-            result = subprocess.run(["pixi", "--version"], capture_output=True, timeout=10)
+            result = subprocess.run(
+                [_default_pixi_executable(), "--version"], capture_output=True, timeout=10
+            )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired):
             return False
 
     def _check_environment_synced(self, path: str) -> bool:
