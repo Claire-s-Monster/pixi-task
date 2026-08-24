@@ -6,7 +6,7 @@ import os
 import subprocess
 import time
 import toml
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 from core.models import (
@@ -317,8 +317,16 @@ class PixiProjectAdapter(PixiProjectPort):
 
     def check_health(self, path: str) -> PixiHealthCheck:
         """Perform comprehensive health check of pixi project."""
-        issues = []
-        recommendations = []
+        issues: list[str] = []
+        recommendations: list[str] = []
+
+        # Initialised up front so the error path still reports whatever was
+        # measured before the failure instead of asserting nothing exists.
+        is_pixi_project = False
+        pixi_executable_found = False
+        lock_file_exists = False
+        environment_exists = False
+        environment_synced = False
 
         try:
             # Check if it's a pixi project
@@ -334,7 +342,6 @@ class PixiProjectAdapter(PixiProjectPort):
                 recommendations.append("Install pixi: curl -fsSL https://pixi.sh/install.sh | bash")
 
             # Check lock file
-            lock_file_exists = False
             if is_pixi_project:
                 lock_file_path = Path(path) / "pixi.lock"
                 lock_file_exists = lock_file_path.exists()
@@ -343,8 +350,6 @@ class PixiProjectAdapter(PixiProjectPort):
                     recommendations.append("Run 'pixi install' to create lock file")
 
             # Check environment
-            environment_exists = False
-            environment_synced = False
             if is_pixi_project and pixi_executable_found:
                 environment_path = self._get_environment_path(path)
                 if environment_path:
@@ -360,18 +365,22 @@ class PixiProjectAdapter(PixiProjectPort):
                     issues.append("Pixi environment not found")
                     recommendations.append("Run 'pixi install' to create environment")
 
-            if len(issues) == 0:
-                return PixiHealthCheck.create_healthy(path)
-            else:
-                return PixiHealthCheck.create_unhealthy(path, issues, recommendations)
-
         except Exception as e:
             self.logging.log_error(f"Health check failed: {str(e)}", {"path": path})
-            return PixiHealthCheck.create_unhealthy(
-                path,
-                [f"Health check error: {str(e)}"],
-                ["Check project configuration and pixi installation"],
-            )
+            issues.append(f"Health check error: {str(e)}")
+            recommendations.append("Check project configuration and pixi installation")
+
+        return PixiHealthCheck(
+            is_pixi_project=is_pixi_project,
+            pixi_executable_found=pixi_executable_found,
+            environment_exists=environment_exists,
+            environment_synced=environment_synced,
+            lock_file_exists=lock_file_exists,
+            issues=issues,
+            recommendations=recommendations,
+            project_path=path,
+            checked_at=datetime.now(UTC).isoformat(),
+        )
 
     def init_project(self, path: str, template: str | None = None) -> PixiOperationResult:
         """Initialize a new pixi project."""

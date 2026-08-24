@@ -331,39 +331,6 @@ class PixiHealthCheck(BaseModel):
     project_path: str = Field(description="Path that was checked")
     checked_at: str = Field(description="Health check timestamp")
 
-    @classmethod
-    def create_healthy(cls, project_path: str) -> "PixiHealthCheck":
-        """Create healthy check result."""
-        return cls(
-            is_pixi_project=True,
-            pixi_executable_found=True,
-            environment_exists=True,
-            environment_synced=True,
-            lock_file_exists=True,
-            project_path=project_path,
-            checked_at=datetime.now(UTC).isoformat(),
-        )
-
-    @classmethod
-    def create_unhealthy(
-        cls,
-        project_path: str,
-        issues: list[str],
-        recommendations: list[str] | None = None,
-    ) -> "PixiHealthCheck":
-        """Create unhealthy check result."""
-        return cls(
-            is_pixi_project=False,
-            pixi_executable_found=False,
-            environment_exists=False,
-            environment_synced=False,
-            lock_file_exists=False,
-            issues=issues,
-            recommendations=recommendations or [],
-            project_path=project_path,
-            checked_at=datetime.now(UTC).isoformat(),
-        )
-
     def is_healthy(self) -> bool:
         """Check if project is healthy."""
         return (
