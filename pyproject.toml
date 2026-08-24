@@ -348,7 +348,7 @@ format-diff = "pixi run -e quality ruff format --diff src/ tests/"        # Show
 typecheck = "pixi run -e quality mypy src/"
 
 # Combined Quality Check - MANDATORY BEFORE COMMIT
-quality = { depends-on = ["test", "lint", "typecheck"] }
+quality = { depends-on = ["format-check", "lint", "typecheck", "test"] }
 
 # LOCAL Development Quality Gates - Comprehensive validation
 quality-local = { cmd = "python scripts/local-quality-check.py", depends-on = ["dev-setup"] }
