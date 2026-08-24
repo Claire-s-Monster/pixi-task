@@ -10,7 +10,7 @@ import subprocess
 import time
 from typing import Any
 
-from core.models import SystemHealth
+from core.models import SystemHealth, _default_pixi_executable
 from core.ports import EnvironmentPort
 
 
@@ -51,14 +51,19 @@ class EnvironmentAdapter(EnvironmentPort):
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
         try:
-            result = subprocess.run(["pixi", "--version"], capture_output=True, timeout=10)
+            result = subprocess.run(
+                [_default_pixi_executable(), "--version"], capture_output=True, timeout=10
+            )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired):
             return False
 
     def get_pixi_path(self) -> str | None:
         """Get path to pixi executable."""
-        return shutil.which("pixi")
+        candidate = _default_pixi_executable()
+        if os.path.isabs(candidate):
+            return candidate
+        return shutil.which(candidate)
 
     def get_pixi_executable_path(self) -> str | None:
         """Get the path to pixi executable."""
