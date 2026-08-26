@@ -215,7 +215,7 @@ class PixiProjectAdapter(PixiProjectPort):
                 )
 
             # Build command
-            command = ["pixi", "add"]
+            command = [_default_pixi_executable(), "add"]
             if is_dev:
                 command.append("--dev")
             if channel:
@@ -274,7 +274,7 @@ class PixiProjectAdapter(PixiProjectPort):
                 )
 
             # Build command
-            command = ["pixi", "remove"]
+            command = [_default_pixi_executable(), "remove"]
             if is_dev:
                 command.append("--dev")
             command.append(package)
@@ -388,7 +388,7 @@ class PixiProjectAdapter(PixiProjectPort):
 
         try:
             # Build command
-            command = ["pixi", "init"]
+            command = [_default_pixi_executable(), "init"]
             if template:
                 command.extend(["--template", template])
             command.append(path)
@@ -492,29 +492,22 @@ class PixiProjectAdapter(PixiProjectPort):
             return PixiEnvironmentInfo.create_not_found()
 
     def _get_environment_path(self, path: str) -> str | None:
-        """Get the path to the pixi environment."""
-        try:
-            # Try to get environment path from pixi info
-            result = subprocess.run(
-                ["pixi", "info"], capture_output=True, text=True, cwd=path, timeout=10
-            )
+        """Get the path to the pixi environment.
 
-            if result.returncode == 0:
-                # Parse output to find environment path
-                for line in result.stdout.split("\n"):
-                    if "Environment" in line and "path" in line.lower():
-                        # Extract path from output (implementation depends on pixi info format)
-                        pass
+        Filesystem-only by design: this is called from health checks that must
+        work when pixi is not resolvable on PATH (see issue #23).
+        """
+        envs_dir = Path(path) / ".pixi" / "envs"
 
-            # Fallback: construct standard environment path
-            # This is typically in .pixi/envs/default
-            env_path = Path(path) / ".pixi" / "envs" / "default"
+        default_env = envs_dir / "default"
+        if default_env.is_dir():
+            return str(default_env)
 
-            if env_path.exists():
-                return str(env_path)
-
-        except Exception:
-            pass
+        # A project may name its environments something other than "default".
+        if envs_dir.is_dir():
+            for candidate in sorted(envs_dir.iterdir()):
+                if candidate.is_dir():
+                    return str(candidate)
 
         return None
 
