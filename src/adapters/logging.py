@@ -24,8 +24,9 @@ class LoggingAdapter(LoggingPort):
         self.security_logger = logging.getLogger("pixi_task.security")
         self.security_logger.setLevel(logging.INFO)
 
-        # Set up console handler if not already configured
-        if not self.logger.handlers:
+        # Set up console handler only if nothing in the hierarchy (incl. root) will emit.
+        # security_logger propagates to self.logger, so it needs no handler of its own.
+        if not self.logger.hasHandlers():
             handler = logging.StreamHandler(sys.stdout)
             handler.setLevel(logging.INFO)
 
@@ -33,7 +34,6 @@ class LoggingAdapter(LoggingPort):
             handler.setFormatter(formatter)
 
             self.logger.addHandler(handler)
-            self.security_logger.addHandler(handler)
 
     def log_info(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log an informational message."""
