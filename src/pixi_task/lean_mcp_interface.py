@@ -191,12 +191,17 @@ class LeanMCPInterface:
                         "type": "string",
                         "description": "Pixi environment name. None (default) lists tasks from base + all features. 'default' lists base [tasks] only. A named env walks [environments.<name>.features].",
                     },
+                    "manifest_path": {
+                        "type": "string",
+                        "description": "Path to parent project's pixi.toml (for sub-packages that share a parent's pixi environment)",
+                    },
                 },
             },
             "examples": [
                 {},
                 {"working_dir": "/path/to/project"},
                 {"environment": "ci"},
+                {"working_dir": "/path/to/sub", "manifest_path": "/path/to/parent/pixi.toml"},
             ],
         }
 
@@ -796,8 +801,15 @@ class LeanMCPInterface:
         self,
         working_dir: str | None = None,
         environment: str | None = None,
+        manifest_path: str | None = None,
     ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.list_tasks(working_dir, environment=environment)
+        if manifest_path is None:
+            return self.business_engine.pixi_service.list_tasks(
+                working_dir, environment=environment
+            )
+        return self.business_engine.pixi_service.list_tasks(
+            working_dir, environment=environment, manifest_path=manifest_path
+        )
 
     def _pixi_task_exists_impl(
         self,
