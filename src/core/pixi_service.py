@@ -237,6 +237,7 @@ class PixiShellService:
         self,
         working_dir: str | None = None,
         environment: str | None = None,
+        manifest_path: str | None = None,
     ) -> dict[str, Any]:
         """
         List all available pixi tasks with descriptions.
@@ -246,15 +247,18 @@ class PixiShellService:
         working_dir = self._resolve_working_dir(working_dir)
 
         try:
-            if not self.pixi_project.is_pixi_project(working_dir):
+            # Same rule as run_task: manifest_path's parent holds the pixi project
+            project_dir = str(Path(manifest_path).parent) if manifest_path else working_dir
+
+            if not self.pixi_project.is_pixi_project(project_dir):
                 return {
                     "tasks": {},
                     "environment": environment,
-                    "error": f"Directory {working_dir} is not a pixi project",
+                    "error": f"Directory {project_dir} is not a pixi project",
                 }
 
             available_tasks = self.pixi_project.get_available_tasks(
-                working_dir, environment=environment
+                project_dir, environment=environment
             )
 
             self.logging.log_info(
