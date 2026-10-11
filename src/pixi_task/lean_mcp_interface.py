@@ -24,6 +24,7 @@ Business Logic:
 - Enhanced with discovery metadata and optimization
 """
 
+import inspect
 import json
 import logging
 from functools import wraps
@@ -98,12 +99,13 @@ class LeanMCPInterface:
             "description": "Execute a pixi task with arguments (replaces Bash('pixi run ...'))",
             "domain": "task",
             "complexity": "core",
+            "aliases": {"task": "task_name"},
             "schema": {
                 "type": "object",
                 "properties": {
                     "task_name": {
                         "type": "string",
-                        "description": "Name of the pixi task to execute",
+                        "description": "Name of the pixi task to execute (alias: task)",
                     },
                     "args": {
                         "type": "array",
@@ -472,6 +474,22 @@ class LeanMCPInterface:
 
         return wrapper
 
+    @staticmethod
+    def _resolve_aliases(aliases: dict[str, str], parameters: dict) -> dict:
+        """Rewrite alias parameter names to their canonical names; raise on conflict."""
+        resolved = dict(parameters)
+        for alias, canonical in aliases.items():
+            if alias not in resolved:
+                continue
+            value = resolved.pop(alias)
+            if canonical in resolved and resolved[canonical] != value:
+                raise ValueError(
+                    f"Conflicting values for '{canonical}' and its alias '{alias}': "
+                    f"{resolved[canonical]!r} vs {value!r}; pass only '{canonical}'"
+                )
+            resolved[canonical] = value
+        return resolved
+
     def dispatch_meta_tool(self, name: str, params: dict) -> dict:
         """
         Single dispatch entry point for the three meta-tools.
@@ -586,6 +604,25 @@ class LeanMCPInterface:
                     "tool": tool_name,
                     "status": "error",
                     "error": (f"parameters must be a mapping, got {type(parameters).__name__}"),
+                }
+
+            tool_info = self.tool_registry[tool_name]
+            try:
+                parameters = self._resolve_aliases(tool_info.get("aliases", {}), parameters)
+            except ValueError as e:
+                return {"tool": tool_name, "status": "error", "error": str(e)}
+
+            # Validate binding up front so only argument mismatches (not TypeErrors
+            # raised inside the tool's own logic) get the self-correcting hint.
+            try:
+                inspect.signature(tool_func).bind(**parameters)
+            except TypeError as e:
+                return {
+                    "tool": tool_name,
+                    "status": "error",
+                    "error": f"Invalid arguments for '{tool_name}': {e}",
+                    "properties": list(tool_info["schema"].get("properties", {})),
+                    "required": tool_info["schema"].get("required", []),
                 }
 
             try:
