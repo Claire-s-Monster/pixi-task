@@ -926,8 +926,8 @@ class LeanMCPInterface:
                 "A secure MCP server providing controlled access to pixi tasks "
                 "and commands, eliminating agent bash circumvention."
             ),
-            "source_url": "https://github.com/MementoRC/pixi-task",
-            "issues_url": "https://github.com/MementoRC/pixi-task/issues",
+            "source_url": "https://github.com/Claire-s-Monster/pixi-task",
+            "issues_url": "https://github.com/Claire-s-Monster/pixi-task/issues",
             "transport": self.transport,
             "tool_count": len(exposed),
             "registry_size": len(self.tool_registry),
