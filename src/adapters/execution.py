@@ -13,6 +13,7 @@ from core.models import (
     PixiTaskResult,
 )
 from core.ports import PixiExecutorPort, LoggingPort, ValidationPort, EnvironmentPort
+from core.process import run_with_group_kill
 from adapters.background import BackgroundJobManager
 
 
@@ -317,11 +318,9 @@ class PixiExecutionAdapter(PixiExecutorPort):
                     full_env.pop(var, None)
 
             # Execute command
-            result = subprocess.run(
+            result = run_with_group_kill(
                 command,
-                capture_output=True,
                 timeout=timeout_seconds,
-                text=True,
                 cwd=working_dir,
                 env=full_env,
             )
