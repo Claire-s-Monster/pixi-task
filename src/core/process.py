@@ -54,6 +54,4 @@ def run_with_group_kill(
         except BaseException:
             _signal_group(proc.pid, signal.SIGKILL)
             raise
-        return subprocess.CompletedProcess(
-            list(command), proc.returncode, stdout, stderr
-        )
+        return subprocess.CompletedProcess(list(command), proc.returncode, stdout, stderr)

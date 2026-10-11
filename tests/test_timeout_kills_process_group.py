@@ -100,7 +100,5 @@ def test_helper_returns_output_unchanged(tmp_path: Path) -> None:
 
 
 def test_execution_fast_command_unchanged() -> None:
-    stdout, stderr, code, _ = _adapter()._execute_with_timeout(
-        ["sh", "-c", "echo hi; exit 0"], 10
-    )
+    stdout, stderr, code, _ = _adapter()._execute_with_timeout(["sh", "-c", "echo hi; exit 0"], 10)
     assert (stdout, stderr, code) == ("hi\n", "", 0)
