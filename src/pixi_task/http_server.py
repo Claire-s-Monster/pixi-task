@@ -417,7 +417,9 @@ class HTTPPixiShellServer:
                     )
 
                 try:
-                    result = self._execute_lean_tool(tool_name, arguments)
+                    # Tool calls end in a blocking subprocess.run; run them in a
+                    # worker thread so the single event loop keeps serving other requests.
+                    result = await asyncio.to_thread(self._execute_lean_tool, tool_name, arguments)
                     logger.debug(
                         "Meta-tool executed: %s (session: %s)",
                         tool_name,
