@@ -52,6 +52,8 @@ def test_server_info_name_and_source_url():
     assert info["name"] == "pixi-task"
     assert info["source_url"].startswith("https://github.com/")
     assert info["issues_url"].startswith("https://github.com/")
+    assert info["source_url"] == "https://github.com/Claire-s-Monster/pixi-task"
+    assert info["issues_url"] == "https://github.com/Claire-s-Monster/pixi-task/issues"
 
 
 def test_server_info_tool_count_reflects_floor():

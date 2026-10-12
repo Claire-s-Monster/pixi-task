@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.process import run_with_group_kill
+
 from core.models import (
     PixiExecutionContext,
 )
@@ -735,9 +737,7 @@ class PixiShellService:
             )
 
             # Run the build
-            result = subprocess.run(
-                cmd, cwd=working_dir, capture_output=True, text=True, timeout=timeout
-            )
+            result = run_with_group_kill(cmd, cwd=working_dir, timeout=timeout)
 
             duration = time.time() - start_time
             output = result.stdout + result.stderr
