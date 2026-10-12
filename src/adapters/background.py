@@ -22,6 +22,7 @@ Design notes:
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -31,6 +32,42 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+# pixi_wait limits (issue #31). MAX_WAIT_S stays below typical MCP transport
+# windows so a single call never outlives the client's patience.
+MAX_WAIT_S = 15.0
+WAIT_POLL_INTERVAL_S = 0.5
+MAX_CONCURRENT_WAITS = 8
+MAX_RESULT_CONTAINS_ITEMS = 10
+MAX_RESULT_CONTAINS_LEN = 256
+MAX_RESULT_LINES_CAP = 100
+TAIL_BYTES = 8192
+
+
+def _wait_error(job_id: str, message: str, started: float) -> dict[str, Any]:
+    return {
+        "job_id": job_id,
+        "state": "error",
+        "job_status": None,
+        "exit_code": None,
+        "elapsed_s": time.monotonic() - started,
+        "matched_lines": [],
+        "output_file": None,
+        "error": message,
+        "returned_because": "error",
+    }
+
+
+def _validate_needles(needles: list[str]) -> str | None:
+    """Return an error message if ``needles`` violate count/length/non-empty limits."""
+    if len(needles) > MAX_RESULT_CONTAINS_ITEMS:
+        return f"result_contains exceeds {MAX_RESULT_CONTAINS_ITEMS} items"
+    if any(not isinstance(n, str) or not n for n in needles):
+        return "result_contains items must be non-empty strings"
+    if any(len(n) > MAX_RESULT_CONTAINS_LEN for n in needles):
+        return f"result_contains item exceeds {MAX_RESULT_CONTAINS_LEN} chars"
+    return None
 
 
 class BackgroundJobManager:
@@ -47,6 +84,7 @@ class BackgroundJobManager:
         self._base = Path(base_dir) if base_dir else Path(tempfile.gettempdir()) / "pixi-task-jobs"
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self._wait_slots = threading.BoundedSemaphore(MAX_CONCURRENT_WAITS)
 
     def launch(
         self,
@@ -164,11 +202,110 @@ class BackgroundJobManager:
             ),
         }
 
-    def status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
+    def wait(
+        self,
+        job_id: str,
+        wait_s: float = MAX_WAIT_S,
+        result_contains: list[str] | None = None,
+        max_result_lines: int = 25,
+    ) -> dict[str, Any]:
+        """Block (bounded) until the job leaves ``running``, or ``wait_s`` elapses.
+
+        Polls the same ``status()`` code path as ``pixi_task_status``. Runs in a
+        worker thread (tool calls are dispatched via ``asyncio.to_thread``), so
+        ``time.sleep`` here does not block the event loop. Never raises.
+        """
+        started = time.monotonic()
+        try:
+            wait_s = float(wait_s)
+        except (TypeError, ValueError):
+            return _wait_error(job_id, "wait_s must be a finite number", started)
+        if not math.isfinite(wait_s):
+            return _wait_error(job_id, "wait_s must be a finite number", started)
+        needles = list(result_contains or [])
+        problem = _validate_needles(needles)
+        if problem:
+            return _wait_error(job_id, problem, started)
+        wait_s = min(max(wait_s, 0.0), MAX_WAIT_S)
+        limit = min(max(int(max_result_lines), 1), MAX_RESULT_LINES_CAP)
+
+        if not self._wait_slots.acquire(blocking=False):
+            return self._wait_check(job_id, started, needles, limit, cap=True)
+        try:
+            deadline = started + wait_s
+            while True:
+                result = self._wait_check(job_id, started, needles, limit)
+                remaining = deadline - time.monotonic()
+                if result["state"] != "waiting" or remaining <= 0:
+                    return result
+                time.sleep(min(WAIT_POLL_INTERVAL_S, remaining))
+        finally:
+            self._wait_slots.release()
+
+    def _wait_check(
+        self,
+        job_id: str,
+        started: float,
+        needles: list[str],
+        limit: int,
+        cap: bool = False,
+    ) -> dict[str, Any]:
+        """One non-blocking look at a job, shaped as a pixi_wait result."""
+        if not (self._base / job_id).is_dir():
+            return _wait_error(job_id, f"No background job found with id '{job_id}'.", started)
+        snap = self.status(job_id, tail_lines=None)
+        job_status = snap.get("status")
+        if job_status == "unknown" and snap.get("retryable"):
+            job_status = "running"  # status file mid-write: not done yet, not an error
+        elif job_status == "unknown" and "No background job" in str(snap.get("error", "")):
+            return _wait_error(job_id, snap["error"], started)
+        state = "waiting" if job_status == "running" else "done"
+        output_file = snap.get("output_file")
+        matched: list[str] = []
+        if state == "done" and needles:
+            matched = self._matched_lines(output_file, needles, limit)
+        if state == "done":
+            because = "completed"
+        else:
+            because = "concurrency_cap" if cap else "wait_expired"
+        return {
+            "job_id": job_id,
+            "state": state,
+            "job_status": job_status,
+            "exit_code": snap.get("exit_code"),
+            "elapsed_s": time.monotonic() - started,
+            "matched_lines": matched,
+            "output_file": output_file,
+            "error": snap.get("error") if job_status == "unknown" else None,
+            "returned_because": because,
+        }
+
+    @staticmethod
+    def _matched_lines(output_file: str | None, needles: list[str], limit: int) -> list[str]:
+        """Lines from a bounded tail of the log containing any needle (last ``limit``)."""
+        if not output_file:
+            return []
+        try:
+            with open(output_file, "rb") as fh:
+                size = fh.seek(0, os.SEEK_END)
+                start = max(0, size - TAIL_BYTES)
+                fh.seek(start)
+                data = fh.read(TAIL_BYTES)
+        except OSError:
+            return []
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        if start > 0:
+            lines = lines[1:]  # first line of a mid-file window is likely partial
+        matched = [ln for ln in lines if any(n in ln for n in needles)]
+        return matched[-limit:]
+
+    def status(self, job_id: str, tail_lines: int | None = 50) -> dict[str, Any]:
         """Return the current state of a background job.
 
         Resolution order: live process handle, then on-disk ``status.json``,
-        then PID liveness. Includes a tail of the captured output.
+        then PID liveness. Includes a tail of the captured output unless
+        ``tail_lines`` is None (used by the pixi_wait poll loop to avoid
+        re-reading the log on every poll).
         """
         with self._lock:
             record = self._jobs.get(job_id)
@@ -195,9 +332,10 @@ class BackgroundJobManager:
                     "status": "unknown",
                     "job_id": job_id,
                     "error": f"Could not read status file: {exc}",
+                    "retryable": True,
                 }
             output_file = disk.get("output_file")
-            disk["output_tail"] = self._read_tail(output_file, tail_lines) if output_file else ""
+            disk["output_tail"] = self._read_tail(output_file, tail_lines)
             # If the file still says running but the pid is dead, the launching
             # server died mid-job; we can no longer recover the exit code.
             if disk.get("status") == "running" and not self._pid_alive(disk.get("pid")):
@@ -254,7 +392,7 @@ class BackgroundJobManager:
             },
         )
 
-    def _running_payload(self, record: dict[str, Any], tail_lines: int) -> dict[str, Any]:
+    def _running_payload(self, record: dict[str, Any], tail_lines: int | None) -> dict[str, Any]:
         return {
             "status": "running",
             "job_id": record["job_id"],
@@ -270,7 +408,7 @@ class BackgroundJobManager:
             "output_tail": self._read_tail(record["output_file"], tail_lines),
         }
 
-    def _completed_payload(self, record: dict[str, Any], tail_lines: int) -> dict[str, Any]:
+    def _completed_payload(self, record: dict[str, Any], tail_lines: int | None) -> dict[str, Any]:
         exit_code = record["exit_code"]
         return {
             "status": "completed",
@@ -290,14 +428,20 @@ class BackgroundJobManager:
 
     @staticmethod
     def _write_status(status_path: Path, payload: dict[str, Any]) -> None:
+        """Write status.json atomically (temp file in the same dir + os.replace).
+
+        Readers (status(), pixi_wait) therefore never observe a half-written file.
+        """
+        tmp_path = status_path.with_name(f"{status_path.name}.{uuid.uuid4().hex[:8]}.tmp")
         try:
-            status_path.write_text(json.dumps(payload, indent=2))
+            tmp_path.write_text(json.dumps(payload, indent=2))
+            os.replace(tmp_path, status_path)
         except OSError:
-            pass
+            tmp_path.unlink(missing_ok=True)
 
     @staticmethod
-    def _read_tail(output_file: str | None, tail_lines: int) -> str:
-        if not output_file:
+    def _read_tail(output_file: str | None, tail_lines: int | None) -> str:
+        if not output_file or tail_lines is None:
             return ""
         try:
             with open(output_file, encoding="utf-8", errors="replace") as fh:

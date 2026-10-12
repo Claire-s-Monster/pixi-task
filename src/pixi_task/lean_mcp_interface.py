@@ -177,6 +177,53 @@ class LeanMCPInterface:
             ],
         }
 
+        registry["pixi_wait"] = {
+            "implementation": self._wrap_tool(self._pixi_wait_impl),
+            "description": "Wait (bounded, <=15s per call) for a background pixi task to finish instead of polling pixi_task_status. Returns state done|waiting|error, job_status, exit_code, and only the output lines matching result_contains. Call again while state=waiting.",
+            "domain": "task",
+            "complexity": "core",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job id returned by pixi_run_task(background=true)",
+                    },
+                    "wait_s": {
+                        "type": "number",
+                        "default": 15,
+                        "minimum": 0,
+                        "maximum": 15,
+                        "description": "Max seconds to block (clamped to [0, 15]; 0 = check once). NaN/inf rejected.",
+                    },
+                    "result_contains": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1, "maxLength": 256},
+                        "maxItems": 10,
+                        "description": "Plain substrings (NOT regex). When the job is done, lines of the output tail containing any of them are returned as matched_lines.",
+                    },
+                    "max_result_lines": {
+                        "type": "integer",
+                        "default": 25,
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Max matched_lines returned (keeps the last N; clamped to [1, 100])",
+                    },
+                },
+                "required": ["job_id"],
+            },
+            "examples": [
+                {"job_id": "a1b2c3d4e5f6"},
+                {"job_id": "a1b2c3d4e5f6", "wait_s": 5},
+                {
+                    "job_id": "a1b2c3d4e5f6",
+                    "wait_s": 15,
+                    "result_contains": ["FAILED", "ERROR", " passed", " failed"],
+                    "max_result_lines": 25,
+                },
+            ],
+        }
+
         registry["pixi_list_tasks"] = {
             "implementation": self._wrap_tool(self._pixi_list_tasks_impl),
             "description": "List all available pixi tasks with descriptions",
@@ -833,6 +880,17 @@ class LeanMCPInterface:
         tail_lines: int = 50,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.get_job_status(job_id, tail_lines)
+
+    def _pixi_wait_impl(
+        self,
+        job_id: str,
+        wait_s: float = 15,
+        result_contains: list[str] | None = None,
+        max_result_lines: int = 25,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.wait_for_job(
+            job_id, wait_s, result_contains, max_result_lines
+        )
 
     def _pixi_list_tasks_impl(
         self,
