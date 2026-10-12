@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -43,6 +44,15 @@ MAX_RESULT_CONTAINS_ITEMS = 10
 MAX_RESULT_CONTAINS_LEN = 256
 MAX_RESULT_LINES_CAP = 100
 TAIL_BYTES = 8192
+
+
+# launch() generates job ids as uuid4().hex[:12]; anything else is never a real
+# job and must not be used as a path component.
+_JOB_ID_RE = re.compile(r"[0-9a-f]{12}")
+
+
+def _is_valid_job_id(job_id: object) -> bool:
+    return isinstance(job_id, str) and _JOB_ID_RE.fullmatch(job_id) is not None
 
 
 def _wait_error(job_id: str, message: str, started: float) -> dict[str, Any]:
@@ -226,6 +236,8 @@ class BackgroundJobManager:
         problem = _validate_needles(needles)
         if problem:
             return _wait_error(job_id, problem, started)
+        if not _is_valid_job_id(job_id):
+            return _wait_error(job_id, f"No background job found with id '{job_id}'.", started)
         wait_s = min(max(wait_s, 0.0), MAX_WAIT_S)
         limit = min(max(int(max_result_lines), 1), MAX_RESULT_LINES_CAP)
 
@@ -251,7 +263,7 @@ class BackgroundJobManager:
         cap: bool = False,
     ) -> dict[str, Any]:
         """One non-blocking look at a job, shaped as a pixi_wait result."""
-        if not (self._base / job_id).is_dir():
+        if not _is_valid_job_id(job_id) or not (self._base / job_id).is_dir():
             return _wait_error(job_id, f"No background job found with id '{job_id}'.", started)
         snap = self.status(job_id, tail_lines=None)
         job_status = snap.get("status")
@@ -307,6 +319,12 @@ class BackgroundJobManager:
         ``tail_lines`` is None (used by the pixi_wait poll loop to avoid
         re-reading the log on every poll).
         """
+        if not _is_valid_job_id(job_id):
+            return {
+                "status": "unknown",
+                "job_id": job_id,
+                "error": f"No background job found with id '{job_id}'.",
+            }
         with self._lock:
             record = self._jobs.get(job_id)
 

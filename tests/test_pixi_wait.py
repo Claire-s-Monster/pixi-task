@@ -27,7 +27,7 @@ def manager(tmp_path: Path) -> BackgroundJobManager:
 
 def _fake_job(
     manager: BackgroundJobManager,
-    job_id: str = "fake1",
+    job_id: str = "0123456789ab",
     status: str = "completed",
     exit_code: int | None = 0,
     log: str = "",
@@ -57,7 +57,7 @@ def _fake_job(
 def test_running_job_returns_waiting_after_wait_expired(manager):
     _fake_job(manager, status="running", exit_code=None)
     start = time.monotonic()
-    result = manager.wait("fake1", wait_s=0.4)
+    result = manager.wait("0123456789ab", wait_s=0.4)
     took = time.monotonic() - start
     assert result["state"] == "waiting"
     assert result["returned_because"] == "wait_expired"
@@ -84,7 +84,7 @@ def test_job_finishing_mid_wait_returns_completed_early(manager):
 
 def test_failed_job_without_matches_still_reports_status_and_exit_code(manager):
     _fake_job(manager, exit_code=2, log="nothing interesting\n")
-    result = manager.wait("fake1", wait_s=0, result_contains=["FAILED"])
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=["FAILED"])
     assert result["state"] == "done"
     assert result["job_status"] == "completed"
     assert result["exit_code"] == 2
@@ -93,7 +93,7 @@ def test_failed_job_without_matches_still_reports_status_and_exit_code(manager):
 
 def test_dead_launcher_unknown_status_is_done_not_waiting(manager):
     _fake_job(manager, status="running", exit_code=None, pid=2**22 + 12345)
-    result = manager.wait("fake1", wait_s=5)
+    result = manager.wait("0123456789ab", wait_s=5)
     assert result["state"] == "done"
     assert result["job_status"] == "unknown"
     assert "exit_code" in result
@@ -102,7 +102,7 @@ def test_dead_launcher_unknown_status_is_done_not_waiting(manager):
 def test_matched_lines_only_matching_and_capped_keeping_last(manager):
     log = "\n".join(f"ERROR number {i}" if i % 2 else f"ok {i}" for i in range(40)) + "\n"
     _fake_job(manager, log=log)
-    result = manager.wait("fake1", wait_s=0, result_contains=["ERROR"], max_result_lines=5)
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=["ERROR"], max_result_lines=5)
     assert result["matched_lines"] == [f"ERROR number {i}" for i in (31, 33, 35, 37, 39)]
 
 
@@ -110,7 +110,9 @@ def test_matched_lines_read_from_bounded_tail_only(manager):
     early = "EARLY_MARKER FAILED\n"
     filler = ("x" * 99 + "\n") * (3 * background.TAIL_BYTES // 100)
     _fake_job(manager, log=early + filler + "LATE_MARKER FAILED\n")
-    result = manager.wait("fake1", wait_s=0, result_contains=["FAILED"], max_result_lines=100)
+    result = manager.wait(
+        "0123456789ab", wait_s=0, result_contains=["FAILED"], max_result_lines=100
+    )
     assert result["matched_lines"] == ["LATE_MARKER FAILED"]
 
 
@@ -120,14 +122,16 @@ def test_partial_first_line_of_tail_is_dropped(manager):
     line = "FAILED " + "y" * 200 + "\n"
     log = "a" * (tail - 100) + "\n" + line + "z FAILED\n"
     _fake_job(manager, log=log)
-    result = manager.wait("fake1", wait_s=0, result_contains=["FAILED"], max_result_lines=100)
+    result = manager.wait(
+        "0123456789ab", wait_s=0, result_contains=["FAILED"], max_result_lines=100
+    )
     assert "z FAILED" in result["matched_lines"]
     assert all(len(m) in (len(line) - 1, len("z FAILED")) for m in result["matched_lines"])
 
 
 def test_no_result_contains_gives_empty_matched_lines_never_raw_tail(manager):
     _fake_job(manager, log="secret raw output\n")
-    result = manager.wait("fake1", wait_s=0)
+    result = manager.wait("0123456789ab", wait_s=0)
     assert result["state"] == "done"
     assert result["matched_lines"] == []
     assert "secret raw output" not in json.dumps(result)
@@ -135,14 +139,14 @@ def test_no_result_contains_gives_empty_matched_lines_never_raw_tail(manager):
 
 def test_matching_is_plain_substring_not_regex(manager):
     _fake_job(manager, log="abc\na.c\n")
-    result = manager.wait("fake1", wait_s=0, result_contains=["a.c"])
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=["a.c"])
     assert result["matched_lines"] == ["a.c"]
 
 
 def test_wait_s_zero_checks_once(manager):
     _fake_job(manager, status="running", exit_code=None)
     start = time.monotonic()
-    result = manager.wait("fake1", wait_s=0)
+    result = manager.wait("0123456789ab", wait_s=0)
     assert time.monotonic() - start < 0.3
     assert result["state"] == "waiting"
     assert result["returned_because"] == "wait_expired"
@@ -152,7 +156,7 @@ def test_wait_s_clamped_to_max(manager, monkeypatch):
     monkeypatch.setattr(background, "MAX_WAIT_S", 0.4)
     _fake_job(manager, status="running", exit_code=None)
     start = time.monotonic()
-    result = manager.wait("fake1", wait_s=10_000)
+    result = manager.wait("0123456789ab", wait_s=10_000)
     took = time.monotonic() - start
     assert result["state"] == "waiting"
     assert took <= 0.4 + POLL + 0.3
@@ -161,14 +165,14 @@ def test_wait_s_clamped_to_max(manager, monkeypatch):
 def test_negative_wait_s_clamped_to_zero(manager):
     _fake_job(manager, status="running", exit_code=None)
     start = time.monotonic()
-    assert manager.wait("fake1", wait_s=-5)["state"] == "waiting"
+    assert manager.wait("0123456789ab", wait_s=-5)["state"] == "waiting"
     assert time.monotonic() - start < 0.3
 
 
 @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
 def test_non_finite_wait_s_is_error(manager, bad):
     _fake_job(manager)
-    result = manager.wait("fake1", wait_s=bad)
+    result = manager.wait("0123456789ab", wait_s=bad)
     assert result["state"] == "error"
     assert result["returned_because"] == "error"
     assert "wait_s" in result["error"]
@@ -180,33 +184,71 @@ def test_non_finite_wait_s_is_error(manager, bad):
 )
 def test_invalid_result_contains_is_error(manager, needles):
     _fake_job(manager)
-    result = manager.wait("fake1", wait_s=0, result_contains=needles)
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=needles)
     assert result["state"] == "error"
     assert "result_contains" in result["error"]
 
 
 def test_result_contains_limits_boundaries_accepted(manager):
     _fake_job(manager, log="hit\n")
-    result = manager.wait("fake1", wait_s=0, result_contains=["hit"] * 10 + [])
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=["hit"] * 10 + [])
     assert result["state"] == "done"
-    result = manager.wait("fake1", wait_s=0, result_contains=["a" * 256])
+    result = manager.wait("0123456789ab", wait_s=0, result_contains=["a" * 256])
     assert result["state"] == "done"
 
 
 def test_max_result_lines_clamped(manager):
     _fake_job(manager, log="".join(f"hit {i}\n" for i in range(300)))
-    assert len(manager.wait("fake1", 0, ["hit"], max_result_lines=10_000)["matched_lines"]) == 100
-    assert len(manager.wait("fake1", 0, ["hit"], max_result_lines=0)["matched_lines"]) == 1
-    assert len(manager.wait("fake1", 0, ["hit"])["matched_lines"]) == 25
+    assert (
+        len(manager.wait("0123456789ab", 0, ["hit"], max_result_lines=10_000)["matched_lines"])
+        == 100
+    )
+    assert len(manager.wait("0123456789ab", 0, ["hit"], max_result_lines=0)["matched_lines"]) == 1
+    assert len(manager.wait("0123456789ab", 0, ["hit"])["matched_lines"]) == 25
 
 
 def test_unknown_job_id_is_error_not_a_wait(manager):
     start = time.monotonic()
-    result = manager.wait("nope", wait_s=5)
+    result = manager.wait("ffffffffffff", wait_s=5)
     assert time.monotonic() - start < 1
     assert result["state"] == "error"
     assert result["returned_because"] == "error"
-    assert "nope" in result["error"]
+    assert "ffffffffffff" in result["error"]
+
+
+def test_path_traversal_job_id_never_reads_outside_base(tmp_path):
+    base = tmp_path / "jobs"
+    manager = BackgroundJobManager(str(base))
+    base.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "status.json").write_text(
+        json.dumps({"status": "completed", "exit_code": 0, "output_file": str(outside / "o")})
+    )
+    status = manager.status("../outside")
+    assert status["status"] == "unknown"
+    assert "No background job found" in status["error"]
+    waited = manager.wait("../outside", wait_s=0)
+    assert waited["state"] == "error"
+    assert waited["returned_because"] == "error"
+
+
+@pytest.mark.parametrize(
+    "bad", ["../x", "abc", "ABCDEF012345", "0123456789abc", "", "0123456789a/"]
+)
+def test_malformed_job_id_is_rejected_by_status_and_wait(manager, bad):
+    status = manager.status(bad)
+    assert status["status"] == "unknown"
+    assert "No background job found" in status["error"]
+    waited = manager.wait(bad, wait_s=0)
+    assert waited["state"] == "error"
+    assert waited["returned_because"] == "error"
+
+
+def test_well_formed_unknown_job_id_gives_normal_not_found(manager):
+    status = manager.status("aaaaaaaaaaaa")
+    assert status["status"] == "unknown"
+    assert "aaaaaaaaaaaa" in status["error"]
 
 
 def test_deleted_job_dir_is_error(manager):
@@ -221,7 +263,7 @@ def test_job_dir_deleted_while_waiting_is_error(manager):
     job_dir = _fake_job(manager, status="running", exit_code=None)
     threading.Timer(0.2, shutil.rmtree, args=(job_dir,)).start()
     start = time.monotonic()
-    result = manager.wait("fake1", wait_s=5)
+    result = manager.wait("0123456789ab", wait_s=5)
     assert time.monotonic() - start < 3
     assert result["state"] == "error"
 
@@ -229,7 +271,7 @@ def test_job_dir_deleted_while_waiting_is_error(manager):
 def test_missing_status_file_is_error(manager):
     job_dir = _fake_job(manager)
     (job_dir / "status.json").unlink()
-    assert manager.wait("fake1", wait_s=5)["state"] == "error"
+    assert manager.wait("0123456789ab", wait_s=5)["state"] == "error"
 
 
 def test_concurrency_cap_does_single_nonwaiting_check(manager):
@@ -238,7 +280,7 @@ def test_concurrency_cap_does_single_nonwaiting_check(manager):
         assert manager._wait_slots.acquire(blocking=False)
     try:
         start = time.monotonic()
-        result = manager.wait("fake1", wait_s=10)
+        result = manager.wait("0123456789ab", wait_s=10)
         assert time.monotonic() - start < 0.3
     finally:
         for _ in range(background.MAX_CONCURRENT_WAITS):
@@ -252,7 +294,7 @@ def test_concurrency_cap_still_reports_done_jobs(manager):
     for _ in range(background.MAX_CONCURRENT_WAITS):
         manager._wait_slots.acquire(blocking=False)
     try:
-        result = manager.wait("fake1", wait_s=10)
+        result = manager.wait("0123456789ab", wait_s=10)
     finally:
         for _ in range(background.MAX_CONCURRENT_WAITS):
             manager._wait_slots.release()
@@ -263,8 +305,8 @@ def test_concurrency_cap_still_reports_done_jobs(manager):
 def test_semaphore_released_after_each_call(manager):
     _fake_job(manager, status="running", exit_code=None)
     for _ in range(background.MAX_CONCURRENT_WAITS + 2):
-        assert manager.wait("fake1", wait_s=0)["returned_because"] == "wait_expired"
-    manager.wait("missing", wait_s=0)
+        assert manager.wait("0123456789ab", wait_s=0)["returned_because"] == "wait_expired"
+    manager.wait("eeeeeeeeeeee", wait_s=0)
     for _ in range(background.MAX_CONCURRENT_WAITS):
         assert manager._wait_slots.acquire(blocking=False)
 
@@ -276,11 +318,11 @@ def test_invalid_status_json_midrun_keeps_waiting_until_valid(manager):
 
     def finish() -> None:
         status_path.write_text(
-            json.dumps({"status": "completed", "job_id": "fake1", "exit_code": 0})
+            json.dumps({"status": "completed", "job_id": "0123456789ab", "exit_code": 0})
         )
 
     threading.Timer(0.3, finish).start()
-    result = manager.wait("fake1", wait_s=5)
+    result = manager.wait("0123456789ab", wait_s=5)
     assert result["state"] == "done"
     assert result["exit_code"] == 0
 
@@ -288,7 +330,7 @@ def test_invalid_status_json_midrun_keeps_waiting_until_valid(manager):
 def test_persistently_invalid_status_json_is_waiting_not_error(manager):
     job_dir = _fake_job(manager)
     (job_dir / "status.json").write_text("{")
-    result = manager.wait("fake1", wait_s=0.2)
+    result = manager.wait("0123456789ab", wait_s=0.2)
     assert result["state"] == "waiting"
     assert result["returned_because"] == "wait_expired"
 
