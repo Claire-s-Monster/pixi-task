@@ -281,6 +281,16 @@ class PixiExecutionAdapter(PixiExecutorPort):
         """Return the status and output tail of a background job."""
         return self.jobs.status(job_id, tail_lines)
 
+    def wait_for_job(
+        self,
+        job_id: str,
+        wait_s: float = 15,
+        result_contains: list[str] | None = None,
+        max_result_lines: int = 25,
+    ) -> dict[str, Any]:
+        """Bounded long-poll on a background job (see BackgroundJobManager.wait)."""
+        return self.jobs.wait(job_id, wait_s, result_contains, max_result_lines)
+
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
         try:

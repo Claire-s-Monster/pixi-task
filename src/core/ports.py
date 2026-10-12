@@ -62,6 +62,17 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
+    def wait_for_job(
+        self,
+        job_id: str,
+        wait_s: float = 15,
+        result_contains: list[str] | None = None,
+        max_result_lines: int = 25,
+    ) -> dict[str, Any]:
+        """Block (bounded) until a background job finishes or ``wait_s`` elapses."""
+        pass
+
+    @abstractmethod
     def check_pixi_available(self) -> bool:
         """Check if pixi executable is available."""
         pass

@@ -235,6 +235,27 @@ class PixiShellService:
                 "error": f"Failed to get job status: {str(e)}",
             }
 
+    def wait_for_job(
+        self,
+        job_id: str,
+        wait_s: float = 15,
+        result_contains: list[str] | None = None,
+        max_result_lines: int = 25,
+    ) -> dict[str, Any]:
+        """Wait (bounded) for a background pixi task to finish; see pixi_wait."""
+        try:
+            return self.pixi_executor.wait_for_job(
+                job_id, wait_s, result_contains, max_result_lines
+            )
+        except Exception as e:
+            return {
+                "job_id": job_id,
+                "state": "error",
+                "matched_lines": [],
+                "error": f"Failed to wait for job: {str(e)}",
+                "returned_because": "error",
+            }
+
     def list_tasks(
         self,
         working_dir: str | None = None,
