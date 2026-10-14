@@ -20,6 +20,8 @@ HTTP_EXPOSED = {
     "pixi_run_task",
     "pixi_task_status",
     "pixi_wait",
+    "pixi_search",
+    "pixi_exec",
     "pixi_list_tasks",
     "pixi_task_exists",
     "pixi_install",

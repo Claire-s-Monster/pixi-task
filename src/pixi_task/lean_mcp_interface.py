@@ -153,7 +153,7 @@ class LeanMCPInterface:
 
         registry["pixi_task_status"] = {
             "implementation": self._wrap_tool(self._pixi_task_status_impl),
-            "description": "Check the status and output of a background pixi task launched via pixi_run_task(background=true)",
+            "description": "Check the status and output of a background pixi task launched via pixi_run_task(background=true) or pixi_exec(background=true)",
             "domain": "task",
             "complexity": "core",
             "schema": {
@@ -161,7 +161,7 @@ class LeanMCPInterface:
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "Job id returned by pixi_run_task(background=true)",
+                        "description": "Job id returned by pixi_run_task(background=true) or pixi_exec(background=true)",
                     },
                     "tail_lines": {
                         "type": "integer",
@@ -179,7 +179,7 @@ class LeanMCPInterface:
 
         registry["pixi_wait"] = {
             "implementation": self._wrap_tool(self._pixi_wait_impl),
-            "description": "Wait (bounded, <=15s per call) for a background pixi task to finish instead of polling pixi_task_status. Returns state done|waiting|error, job_status, exit_code, and only the output lines matching result_contains. Call again while state=waiting.",
+            "description": "Wait (bounded, <=15s per call) for a background pixi task or pixi_exec job to finish instead of polling pixi_task_status. Returns state done|waiting|error, job_status, exit_code, and only the output lines matching result_contains. Call again while state=waiting.",
             "domain": "task",
             "complexity": "core",
             "schema": {
@@ -187,7 +187,7 @@ class LeanMCPInterface:
                 "properties": {
                     "job_id": {
                         "type": "string",
-                        "description": "Job id returned by pixi_run_task(background=true)",
+                        "description": "Job id returned by pixi_run_task(background=true) or pixi_exec(background=true)",
                     },
                     "wait_s": {
                         "type": "number",
@@ -502,6 +502,108 @@ class LeanMCPInterface:
                     "variant_config": "./variants.yaml",
                     "timeout": 3600,
                 },
+            ],
+        }
+
+        registry["pixi_search"] = {
+            "implementation": self._wrap_tool(self._pixi_search_impl),
+            "description": "Search conda channels for packages (pixi search). Returns found plus up to 25 matches (name, version, build, subdir, channel). No manifest needed.",
+            "domain": "package",
+            "complexity": "core",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": "string",
+                        "description": "MatchSpec to search for, e.g. 'numpy', 'ocaml-menhir 20230608.*', 'py*'",
+                    },
+                    "channels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": ["conda-forge"],
+                        "description": "Channels to search",
+                    },
+                    "platform": {
+                        "type": "string",
+                        "description": "Subdir to search, e.g. 'linux-64' or 'noarch' (default: pixi's choice)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 50,
+                        "description": "Max versions per package per subdir (newest first)",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 60,
+                        "description": "Timeout in seconds",
+                    },
+                },
+                "required": ["spec"],
+            },
+            "examples": [
+                {"spec": "numpy"},
+                {"spec": "ocaml-menhir 20230608.*", "limit": 10},
+                {"spec": "rattler-build", "channels": ["conda-forge"], "platform": "linux-64"},
+            ],
+        }
+
+        registry["pixi_exec"] = {
+            "implementation": self._wrap_tool(self._pixi_exec_impl),
+            "description": "Run an allowlisted tool in a throwaway environment via `pixi exec` (e.g. rattler-build, grayskull). Supports background=true (returns job_id; poll with pixi_wait / pixi_task_status). Tools outside the server allowlist are refused.",
+            "domain": "exec",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "description": "Executable to run; must be in the server's exec allowlist",
+                    },
+                    "args": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": "Arguments passed to the tool (may start with '-')",
+                    },
+                    "specs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": "Extra conda specs to add to the environment (each becomes --with)",
+                    },
+                    "channels": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": "Channels (each becomes -c)",
+                    },
+                    "working_dir": {
+                        "type": "string",
+                        "description": "Working directory (must exist; need not be a pixi project)",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 300,
+                        "description": "Timeout in seconds (foreground only)",
+                    },
+                    "background": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Run detached and return a job_id immediately",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "When background=true, write combined output to this path",
+                    },
+                },
+                "required": ["tool"],
+            },
+            "examples": [
+                {"tool": "rattler-build", "args": ["--version"]},
+                {"tool": "grayskull", "args": ["pypi", "requests"], "channels": ["conda-forge"]},
+                {"tool": "rattler-build", "args": ["build", "--recipe", "."], "background": True},
             ],
         }
 
@@ -890,6 +992,33 @@ class LeanMCPInterface:
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.wait_for_job(
             job_id, wait_s, result_contains, max_result_lines
+        )
+
+    def _pixi_search_impl(
+        self,
+        spec: str,
+        channels: list[str] | None = None,
+        platform: str | None = None,
+        limit: int = 5,
+        timeout: int = 60,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.search_packages(
+            spec, channels, platform, limit, timeout
+        )
+
+    def _pixi_exec_impl(
+        self,
+        tool: str,
+        args: list[str] | None = None,
+        specs: list[str] | None = None,
+        channels: list[str] | None = None,
+        working_dir: str | None = None,
+        timeout: int = 300,
+        background: bool = False,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.exec_tool(
+            tool, args, specs, channels, working_dir, timeout, background, output_file
         )
 
     def _pixi_list_tasks_impl(
