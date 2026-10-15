@@ -136,6 +136,7 @@ class BackgroundJobManager:
         try:
             proc = subprocess.Popen(
                 command,
+                stdin=subprocess.DEVNULL,
                 stdout=out_fh,
                 stderr=subprocess.STDOUT,
                 cwd=working_dir,
@@ -474,6 +475,28 @@ class BackgroundJobManager:
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError(f"Could not read artifact {name} of job {job_id}: {exc}") from exc
         return loaded
+
+    def read_output(self, job_id: str) -> str | None:
+        """Full combined output of a job; None for an unknown job or missing log file."""
+        if not _is_valid_job_id(job_id):
+            return None
+        with self._lock:
+            record = self._jobs.get(job_id)
+        output_file: str | None
+        if record is not None:
+            output_file = record["output_file"]
+        else:
+            try:
+                disk = json.loads((self._base / job_id / "status.json").read_text())
+            except (OSError, json.JSONDecodeError):
+                return None
+            output_file = disk.get("output_file")
+        if not output_file:
+            return None
+        try:
+            return Path(output_file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
 
     @staticmethod
     def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

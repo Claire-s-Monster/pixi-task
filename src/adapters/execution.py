@@ -467,6 +467,10 @@ class PixiExecutionAdapter(PixiExecutorPort):
         """Read a JSON artifact from the job's directory (None if absent)."""
         return self.jobs.read_job_artifact(job_id, name)
 
+    def read_job_output(self, job_id: str) -> str | None:
+        """Read a job's full output log (None if the job or file is gone)."""
+        return self.jobs.read_output(job_id)
+
     def git_is_work_tree(self, repo: str) -> bool:
         """Delegate to adapters.git_snapshot.is_git_work_tree."""
         return is_git_work_tree(repo)
