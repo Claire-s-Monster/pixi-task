@@ -57,6 +57,43 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
+    def exec_tool(
+        self,
+        tool: str,
+        args: list[str],
+        specs: list[str],
+        channels: list[str],
+        context: PixiExecutionContext,
+    ) -> PixiTaskResult:
+        """Run ``tool`` in a throwaway environment via ``pixi exec`` (blocking)."""
+        pass
+
+    @abstractmethod
+    def exec_tool_background(
+        self,
+        tool: str,
+        args: list[str],
+        specs: list[str],
+        channels: list[str],
+        context: PixiExecutionContext,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch ``pixi exec <tool>`` as a detached background job."""
+        pass
+
+    @abstractmethod
+    def search_packages(
+        self,
+        spec: str,
+        channels: list[str],
+        platform: str | None,
+        limit: int,
+        context: PixiExecutionContext,
+    ) -> dict[str, Any]:
+        """Search conda channels for packages matching ``spec`` (``pixi search``)."""
+        pass
+
+    @abstractmethod
     def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
         """Return the status and output tail of a background job."""
         pass

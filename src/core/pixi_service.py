@@ -12,6 +12,7 @@ from typing import Any
 
 from core.process import run_with_group_kill
 
+from core.config import load_exec_allowlist
 from core.models import (
     PixiExecutionContext,
 )
@@ -49,6 +50,7 @@ class PixiShellService:
         # back to this configured base (the launch --repository), or os.getcwd()
         # when no base was configured. We deliberately do NOT os.chdir at startup.
         self.default_working_dir = default_working_dir
+        self._exec_allowlist: frozenset[str] | None = None
 
     def _resolve_working_dir(self, working_dir: str | None) -> str:
         """Resolve a caller-supplied working_dir to a usable directory path.
@@ -223,6 +225,92 @@ class PixiShellService:
                 "working_dir": working_dir,
                 "error": error_msg,
             }
+
+    def _get_exec_allowlist(self) -> frozenset[str]:
+        """Load the pixi_exec allowlist once from the server's own pyproject."""
+        if self._exec_allowlist is None:
+            self._exec_allowlist = load_exec_allowlist()
+        return self._exec_allowlist
+
+    def exec_tool(
+        self,
+        tool: str,
+        args: list[str] | None = None,
+        specs: list[str] | None = None,
+        channels: list[str] | None = None,
+        working_dir: str | None = None,
+        timeout: int = 300,
+        background: bool = False,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Run an allowlisted tool via ``pixi exec`` (foreground or background).
+
+        Refusals and invalid input raise ValueError; a command that ran and
+        exited non-zero is returned as data.
+        """
+        allowed = self._get_exec_allowlist()
+        if tool not in allowed:
+            raise ValueError(
+                f"pixi_exec: tool {tool!r} is not allowlisted. Allowed: {sorted(allowed)}. "
+                "Configure [tool.pixi-task].exec_allowlist in the pixi-task server's pyproject.toml."
+            )
+
+        resolved_dir = self._resolve_working_dir(working_dir)
+        if not Path(resolved_dir).is_dir():
+            raise ValueError(
+                f"pixi_exec: working_dir {resolved_dir!r} is not an existing directory"
+            )
+
+        context = PixiExecutionContext(
+            working_dir=resolved_dir, timeout=timeout, capture_output=True
+        )
+        if background:
+            result = self.pixi_executor.exec_tool_background(
+                tool, args or [], specs or [], channels or [], context, output_file=output_file
+            )
+            self.logging.log_info(
+                f"pixi exec launched in background: {tool}",
+                {"job_id": result.get("job_id"), "working_dir": resolved_dir},
+            )
+            return result
+
+        task_result = self.pixi_executor.exec_tool(
+            tool, args or [], specs or [], channels or [], context
+        )
+        self.logging.log_info(
+            f"pixi exec executed: {tool}",
+            {"exit_code": task_result.exit_code, "working_dir": resolved_dir},
+        )
+        return {
+            "success": task_result.success,
+            "stdout": task_result.stdout,
+            "stderr": task_result.stderr,
+            "exit_code": task_result.exit_code,
+            "execution_time": task_result.execution_time,
+            "tool": tool,
+            "working_dir": task_result.working_dir,
+            "command_line": task_result.command_line,
+        }
+
+    def search_packages(
+        self,
+        spec: str,
+        channels: list[str] | None = None,
+        platform: str | None = None,
+        limit: int = 5,
+        timeout: int = 60,
+    ) -> dict[str, Any]:
+        """Search conda channels via ``pixi search``; see PixiExecutorPort.search_packages."""
+        context = PixiExecutionContext(
+            working_dir=self._resolve_working_dir(None), timeout=timeout, capture_output=True
+        )
+        return self.pixi_executor.search_packages(
+            spec,
+            ["conda-forge"] if channels is None else channels,
+            platform,
+            limit,
+            context,
+        )
 
     def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
         """Return the status and output tail of a background pixi task."""

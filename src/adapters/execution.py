@@ -2,8 +2,11 @@
 Pixi execution adapter for secure task and command execution.
 """
 
+import json
 import os
+import re
 import subprocess
+import tempfile
 import time
 from typing import Any
 
@@ -15,6 +18,44 @@ from core.models import (
 from core.ports import PixiExecutorPort, LoggingPort, ValidationPort, EnvironmentPort
 from core.process import run_with_group_kill
 from adapters.background import BackgroundJobManager
+
+
+MAX_SEARCH_LIMIT = 50
+MAX_SEARCH_MATCHES = 25
+STDERR_TAIL_LINES = 20
+_PLATFORM_RE = re.compile(r"noarch|[a-z0-9]+-[a-z0-9_]+")
+
+
+def _check_option_value(label: str, value: str) -> None:
+    """Reject values that pixi could parse as a flag or that embed control characters."""
+    if not isinstance(value, str) or not value or value.startswith("-"):
+        raise ValueError(f"Invalid {label}: {value!r}")
+    if "\x00" in value or "\n" in value or "\r" in value:
+        raise ValueError(f"Invalid {label}: {value!r}")
+
+
+def _tail(text: str, lines: int = STDERR_TAIL_LINES) -> str:
+    return "\n".join(text.splitlines()[-lines:])
+
+
+def _flatten_search(payload: Any) -> list[dict[str, Any]]:
+    """Flatten ``{subdir: [record, ...]}`` into one record list."""
+    return [rec for records in payload.values() for rec in records]
+
+
+def _limit_versions(records: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Keep the newest ``limit`` records per (subdir, name); stable subdir/name order.
+
+    ``pixi search --json`` cannot be combined with ``--limit``, so it is applied here.
+    """
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for rec in records:
+        groups.setdefault((str(rec.get("subdir")), str(rec.get("name"))), []).append(rec)
+    limited: list[dict[str, Any]] = []
+    for key in sorted(groups):
+        newest_first = sorted(groups[key], key=lambda r: r.get("timestamp") or 0, reverse=True)
+        limited.extend(newest_first[:limit])
+    return limited
 
 
 class PixiExecutionAdapter(PixiExecutorPort):
@@ -276,6 +317,160 @@ class PixiExecutionAdapter(PixiExecutorPort):
             command_line=command_line,
             output_file=output_file,
         )
+
+    def _build_exec_command(
+        self,
+        tool: str,
+        args: list[str],
+        specs: list[str],
+        channels: list[str],
+        context: PixiExecutionContext,
+    ) -> list[str]:
+        """Build ``pixi exec [--with S]... [-c C]... <tool> <args>...`` (shell=False argv)."""
+        for spec in specs:
+            _check_option_value("spec", spec)
+        for channel in channels:
+            _check_option_value("channel", channel)
+        for arg in args:
+            if not isinstance(arg, str) or "\x00" in arg:
+                raise ValueError(f"Invalid argument for pixi_exec: {arg!r}")
+
+        command = [context.pixi_executable, "exec"]
+        for spec in specs:
+            command.extend(["--with", spec])
+        for channel in channels:
+            command.extend(["-c", channel])
+        command.append(tool)
+        command.extend(args)
+        return command
+
+    def exec_tool(
+        self,
+        tool: str,
+        args: list[str],
+        specs: list[str],
+        channels: list[str],
+        context: PixiExecutionContext,
+    ) -> PixiTaskResult:
+        """Run ``tool`` via ``pixi exec`` and wait for it; non-zero exit is data."""
+        command = self._build_exec_command(tool, args, specs, channels, context)
+        command_line = " ".join(command)
+        stdout, stderr, exit_code, execution_time = self._execute_with_timeout(
+            command=command,
+            timeout_seconds=context.timeout,
+            working_dir=context.working_dir,
+            env=context.get_full_env(),
+        )
+        if exit_code == 0:
+            return PixiTaskResult.create_success(
+                task_name=f"exec:{tool}",
+                stdout=stdout,
+                stderr=stderr,
+                execution_time=execution_time,
+                working_dir=context.working_dir,
+                command_line=command_line,
+                environment=context.environment_vars,
+            )
+        return PixiTaskResult.create_failure(
+            task_name=f"exec:{tool}",
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+            execution_time=execution_time,
+            working_dir=context.working_dir,
+            command_line=command_line,
+            environment=context.environment_vars,
+        )
+
+    def exec_tool_background(
+        self,
+        tool: str,
+        args: list[str],
+        specs: list[str],
+        channels: list[str],
+        context: PixiExecutionContext,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch ``pixi exec <tool>`` detached; poll with pixi_task_status / pixi_wait."""
+        command = self._build_exec_command(tool, args, specs, channels, context)
+        command_line = " ".join(command)
+        self.logging.log_info(
+            "Launching background pixi exec",
+            {"tool": tool, "command": command_line, "working_dir": context.working_dir},
+        )
+        return self.jobs.launch(
+            command=command,
+            working_dir=context.working_dir,
+            env=context.get_full_env(),
+            task_name=f"exec:{tool}",
+            command_line=command_line,
+            output_file=output_file,
+        )
+
+    def search_packages(
+        self,
+        spec: str,
+        channels: list[str],
+        platform: str | None,
+        limit: int,
+        context: PixiExecutionContext,
+    ) -> dict[str, Any]:
+        """Run ``pixi search --json`` from a throwaway cwd and summarise the matches."""
+        _check_option_value("spec", spec)
+        for channel in channels:
+            _check_option_value("channel", channel)
+        if platform is not None and not _PLATFORM_RE.fullmatch(platform):
+            raise ValueError(f"Invalid platform: {platform!r}")
+        if not 1 <= limit <= MAX_SEARCH_LIMIT:
+            raise ValueError(f"limit must be between 1 and {MAX_SEARCH_LIMIT}, got {limit}")
+
+        command = [context.pixi_executable, "search", "--json"]
+        for channel in channels:
+            command.extend(["-c", channel])
+        if platform is not None:
+            command.extend(["-p", platform])
+        command.append(spec)
+
+        # Without -p pixi consults the cwd's manifest; a fresh empty directory
+        # keeps results independent of whatever project the server runs in.
+        with tempfile.TemporaryDirectory() as empty_dir:
+            stdout, stderr, exit_code, _ = self._execute_with_timeout(
+                command=command,
+                timeout_seconds=context.timeout,
+                working_dir=empty_dir,
+                env=context.get_full_env(),
+            )
+
+        base = {"spec": spec, "channels": list(channels), "platform": platform}
+        if exit_code != 0:
+            if "No packages found" in stderr:
+                return {
+                    "found": False,
+                    **base,
+                    "matches": [],
+                    "total_matches": 0,
+                    "truncated": False,
+                }
+            raise RuntimeError(f"pixi search failed (exit {exit_code}): {_tail(stderr)}")
+
+        try:
+            records = _limit_versions(_flatten_search(json.loads(stdout)), limit)
+        except (ValueError, AttributeError, TypeError) as e:
+            raise RuntimeError(
+                f"pixi search returned unparseable output ({e}): {_tail(stderr)}"
+            ) from e
+
+        matches = [
+            {key: rec.get(key) for key in ("name", "version", "build", "subdir", "channel")}
+            for rec in records[:MAX_SEARCH_MATCHES]
+        ]
+        return {
+            "found": bool(records),
+            **base,
+            "matches": matches,
+            "total_matches": len(records),
+            "truncated": len(records) > MAX_SEARCH_MATCHES,
+        }
 
     def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
         """Return the status and output tail of a background job."""
