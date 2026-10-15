@@ -31,6 +31,9 @@ HTTP_EXPOSED = {
     "conda_smithy_lint",
     "conda_smithy_rerender",
     "conda_smithy_rerender_result",
+    "rattler_build_build",
+    "rattler_build_test",
+    "rattler_build_result",
 }
 
 

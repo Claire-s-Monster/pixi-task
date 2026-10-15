@@ -31,6 +31,7 @@ def run_with_group_kill(
     """
     with subprocess.Popen(
         command,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

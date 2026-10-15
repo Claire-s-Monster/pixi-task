@@ -717,6 +717,151 @@ class LeanMCPInterface:
             "examples": [{"job_id": "a1b2c3d4e5f6"}],
         }
 
+        # TIER 7: RATTLER-BUILD (via `pixi exec`, json logs, filtered summaries)
+        string_list = {"type": "array", "items": {"type": "string"}}
+        registry["rattler_build_build"] = {
+            "implementation": self._wrap_tool(self._rattler_build_build_impl),
+            "description": "Build a conda package with rattler-build (json logs). Background by default: returns a job_id; poll with pixi_wait, then call rattler_build_result for the filtered summary (status, phase render|solve|install|source|patch|build|package|test, error, context, error_block). The full log stays in output_file. A failed build is data (status failed), not an error.",
+            "domain": "build",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "recipe": {
+                        "type": "string",
+                        "description": "Recipe file or directory (must exist; relative to working_dir)",
+                    },
+                    "variant_config": {
+                        **string_list,
+                        "description": "Variant config files, each passed as -m (must exist)",
+                    },
+                    "target_platform": {
+                        "type": "string",
+                        "description": "Target platform, e.g. 'linux-64' (--target-platform)",
+                    },
+                    "output_dir": {
+                        "type": "string",
+                        "description": "Output directory (--output-dir)",
+                    },
+                    "channels": {**string_list, "description": "Channels, each passed as -c"},
+                    "skip_existing": {
+                        "type": "string",
+                        "enum": ["none", "local", "all"],
+                        "description": "Skip already-built packages (--skip-existing)",
+                    },
+                    "test": {
+                        "type": "string",
+                        "enum": ["skip", "native", "native-and-emulated"],
+                        "description": "Package test strategy (--test)",
+                    },
+                    "extra_args": {
+                        **string_list,
+                        "description": "Extra rattler-build build args, appended verbatim (not --log-style)",
+                    },
+                    "working_dir": {
+                        "type": "string",
+                        "default": ".",
+                        "description": "Working directory (must exist)",
+                    },
+                    "background": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Run detached and return a job_id (recommended); false blocks and returns the summary",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "When background=true, write the full log to this path",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 3600,
+                        "description": "Timeout in seconds (foreground only)",
+                    },
+                },
+                "required": ["recipe"],
+            },
+            "examples": [
+                {"recipe": "recipe", "channels": ["conda-forge"]},
+                {
+                    "recipe": "recipe/recipe.yaml",
+                    "variant_config": ["variants.yaml"],
+                    "test": "skip",
+                },
+                {"recipe": "recipe", "background": False, "target_platform": "linux-64"},
+            ],
+        }
+
+        registry["rattler_build_test"] = {
+            "implementation": self._wrap_tool(self._rattler_build_test_impl),
+            "description": "Test a built conda package with rattler-build test (json logs). Background by default: returns a job_id; poll with pixi_wait, then call rattler_build_result for the filtered summary (status, phase, error, context, error_block). The full log stays in output_file. A failing test is data (status failed).",
+            "domain": "build",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "package_file": {
+                        "type": "string",
+                        "description": "Built package file (.conda / .tar.bz2; must exist; relative to working_dir)",
+                    },
+                    "channels": {**string_list, "description": "Channels, each passed as -c"},
+                    "extra_args": {
+                        **string_list,
+                        "description": "Extra rattler-build test args, appended verbatim (not --log-style)",
+                    },
+                    "working_dir": {
+                        "type": "string",
+                        "default": ".",
+                        "description": "Working directory (must exist)",
+                    },
+                    "background": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Run detached and return a job_id (recommended); false blocks and returns the summary",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "When background=true, write the full log to this path",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 1800,
+                        "description": "Timeout in seconds (foreground only)",
+                    },
+                },
+                "required": ["package_file"],
+            },
+            "examples": [
+                {"package_file": "output/linux-64/foo-1.0-h0_0.conda"},
+                {"package_file": "foo.conda", "channels": ["conda-forge"], "background": False},
+            ],
+        }
+
+        registry["rattler_build_result"] = {
+            "implementation": self._wrap_tool(self._rattler_build_result_impl),
+            "description": "Filtered summary of a finished rattler_build_build / rattler_build_test background job (call after pixi_wait): status, phase render|solve|install|source|patch|build|package|test, error, context, error_block, packages. Returns state running while the job runs. The full log stays in the job's output_file.",
+            "domain": "build",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job id returned by rattler_build_build / rattler_build_test",
+                    },
+                    "context_lines": {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Log lines of context kept before the failure",
+                    },
+                },
+                "required": ["job_id"],
+            },
+            "examples": [
+                {"job_id": "a1b2c3d4e5f6"},
+                {"job_id": "a1b2c3d4e5f6", "context_lines": 40},
+            ],
+        }
+
         return registry
 
     def _wrap_tool(self, tool_func):
@@ -981,7 +1126,7 @@ class LeanMCPInterface:
             Args:
                 tool_name: Exact tool name from discover_tools() result.
                     Common tools: pixi_run_task, pixi_list_tasks, pixi_add_dependency,
-                    pixi_project_status, rattler_build_smart
+                    pixi_project_status, rattler_build_build
 
             Returns:
                 {
@@ -1018,7 +1163,8 @@ class LeanMCPInterface:
             - Run lint: execute_tool("pixi_run_task", {"task_name": "lint"})
             - Add package: execute_tool("pixi_add_dependency", {"package": "pytest"})
             - Project status: execute_tool("pixi_project_status", {})
-            - Build package: execute_tool("rattler_build_smart", {"recipe_path": "."})
+            - Build package: execute_tool("rattler_build_build", {"recipe": "recipe"})
+              (background; then pixi_wait(job_id) and rattler_build_result(job_id))
 
             Args:
                 tool_name: Exact tool name from discover_tools()
@@ -1159,6 +1305,53 @@ class LeanMCPInterface:
         self, job_id: str, tail_lines: int = 30
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.conda_smithy_rerender_result(job_id, tail_lines)
+
+    def _rattler_build_build_impl(
+        self,
+        recipe: str,
+        variant_config: list[str] | None = None,
+        target_platform: str | None = None,
+        output_dir: str | None = None,
+        channels: list[str] | None = None,
+        skip_existing: str | None = None,
+        test: str | None = None,
+        extra_args: list[str] | None = None,
+        working_dir: str = ".",
+        background: bool = True,
+        output_file: str | None = None,
+        timeout: int = 3600,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.rattler_build_build(
+            recipe,
+            variant_config,
+            target_platform,
+            output_dir,
+            channels,
+            skip_existing,
+            test,
+            extra_args,
+            working_dir,
+            background,
+            output_file,
+            timeout,
+        )
+
+    def _rattler_build_test_impl(
+        self,
+        package_file: str,
+        channels: list[str] | None = None,
+        extra_args: list[str] | None = None,
+        working_dir: str = ".",
+        background: bool = True,
+        output_file: str | None = None,
+        timeout: int = 1800,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.rattler_build_test(
+            package_file, channels, extra_args, working_dir, background, output_file, timeout
+        )
+
+    def _rattler_build_result_impl(self, job_id: str, context_lines: int = 20) -> dict[str, Any]:
+        return self.business_engine.pixi_service.rattler_build_result(job_id, context_lines)
 
     def _pixi_list_tasks_impl(
         self,

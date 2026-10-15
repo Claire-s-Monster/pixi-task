@@ -108,6 +108,11 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
+    def read_job_output(self, job_id: str) -> str | None:
+        """Full combined output of a background job; None when the job or its log is gone."""
+        pass
+
+    @abstractmethod
     def git_is_work_tree(self, repo: str) -> bool:
         """True when ``repo`` is inside a git work tree."""
         pass

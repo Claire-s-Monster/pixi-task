@@ -18,6 +18,7 @@ from core.conda_smithy import (
     parse_recipe_lint,
 )
 from core.process import run_with_group_kill
+from core.rattler_build_log import summarize_build_log
 
 from core.config import load_exec_allowlist
 from core.models import (
@@ -31,6 +32,9 @@ from core.ports import (
 )
 
 RERENDER_BEFORE_ARTIFACT = "rerender_before.json"
+RATTLER_BUILD_ARTIFACT = "rattler_build.json"
+RATTLER_SKIP_EXISTING = ("none", "local", "all")
+RATTLER_TEST_MODES = ("skip", "native", "native-and-emulated")
 
 
 class PixiShellService:
@@ -516,6 +520,158 @@ class PixiShellService:
             status.get("execution_time"),
         )
         return {**report, "job_id": job_id}
+
+    # ----- rattler-build tools (issue #45) ----------------------------------
+    # Like the smithy tools these call `pixi exec rattler-build ...` directly (not
+    # subject to the pixi_exec allowlist). A failed build/test is DATA: the filtered
+    # summary comes back with status "failed". ValueError means bad parameters,
+    # RuntimeError means the job could not be launched or tracked.
+
+    @staticmethod
+    def _rb_str_list(tool: str, label: str, value: list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ValueError(f"{tool}: {label} must be a list of strings")
+        return value
+
+    @staticmethod
+    def _rb_existing(tool: str, label: str, value: str, wd: str, *, file_only: bool) -> None:
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"{tool}: {label} must be a non-empty string")
+        path = Path(value) if Path(value).is_absolute() else Path(wd) / value
+        if not (path.is_file() if file_only else path.exists()):
+            kind = "file" if file_only else "file or directory"
+            raise ValueError(f"{tool}: {label} {value!r} is not an existing {kind} (in {wd})")
+
+    def _rb_extra_args(self, tool: str, extra_args: list[str] | None) -> list[str]:
+        args = self._rb_str_list(tool, "extra_args", extra_args)
+        if any(a == "--log-style" or a.startswith("--log-style=") for a in args):
+            raise ValueError(
+                f"{tool}: extra_args must not set --log-style (the summary needs json logs)"
+            )
+        return args
+
+    def _rb_dispatch(
+        self,
+        command: str,
+        argv: list[str],
+        wd: str,
+        timeout: int,
+        background: bool,
+        output_file: str | None,
+    ) -> dict[str, Any]:
+        context = PixiExecutionContext(working_dir=wd, timeout=timeout, capture_output=True)
+        if not background:
+            result = self.pixi_executor.run_pixi_exec(argv, context)
+            return {
+                **summarize_build_log(result.stdout + "\n" + result.stderr, result.exit_code),
+                "command": command,
+                "execution_time": result.execution_time,
+                "working_dir": wd,
+                "note": "foreground runs do not keep the full log; use background=true for long builds",
+            }
+        launch = self.pixi_executor.launch_pixi_exec_background(
+            argv, context, f"rattler-build:{command}", output_file
+        )
+        if launch.get("status") == "error" or not launch.get("job_id"):
+            raise RuntimeError(f"rattler-build {command} launch failed: {launch.get('error')}")
+        self.pixi_executor.write_job_artifact(
+            launch["job_id"],
+            RATTLER_BUILD_ARTIFACT,
+            {"command": command, "working_dir": wd, "argv": argv},
+        )
+        return {**launch, "next": "pixi_wait(job_id) then rattler_build_result(job_id)"}
+
+    def rattler_build_build(
+        self,
+        recipe: str,
+        variant_config: list[str] | None = None,
+        target_platform: str | None = None,
+        output_dir: str | None = None,
+        channels: list[str] | None = None,
+        skip_existing: str | None = None,
+        test: str | None = None,
+        extra_args: list[str] | None = None,
+        working_dir: str = ".",
+        background: bool = True,
+        output_file: str | None = None,
+        timeout: int = 3600,
+    ) -> dict[str, Any]:
+        """Run ``rattler-build build`` with json logs; return/launch a filtered summary."""
+        tool = "rattler_build_build"
+        wd = self._resolve_existing_dir(tool, "working_dir", working_dir)
+        self._rb_existing(tool, "recipe", recipe, wd, file_only=False)
+        variants = self._rb_str_list(tool, "variant_config", variant_config)
+        for variant in variants:
+            self._rb_existing(tool, "variant_config", variant, wd, file_only=False)
+        if skip_existing is not None and skip_existing not in RATTLER_SKIP_EXISTING:
+            raise ValueError(
+                f"{tool}: skip_existing must be one of {RATTLER_SKIP_EXISTING}, got {skip_existing!r}"
+            )
+        if test is not None and test not in RATTLER_TEST_MODES:
+            raise ValueError(f"{tool}: test must be one of {RATTLER_TEST_MODES}, got {test!r}")
+        channel_list = self._rb_str_list(tool, "channels", channels)
+        extra = self._rb_extra_args(tool, extra_args)
+
+        argv = ["rattler-build", "build", "--recipe", recipe, "--log-style", "json"]
+        for variant in variants:
+            argv.extend(["-m", variant])
+        for flag, value in (("--target-platform", target_platform), ("--output-dir", output_dir)):
+            if value is not None:
+                argv.extend([flag, value])
+        for channel in channel_list:
+            argv.extend(["-c", channel])
+        for flag, value in (("--skip-existing", skip_existing), ("--test", test)):
+            if value is not None:
+                argv.extend([flag, value])
+        argv.extend(extra)
+        return self._rb_dispatch("build", argv, wd, timeout, background, output_file)
+
+    def rattler_build_test(
+        self,
+        package_file: str,
+        channels: list[str] | None = None,
+        extra_args: list[str] | None = None,
+        working_dir: str = ".",
+        background: bool = True,
+        output_file: str | None = None,
+        timeout: int = 1800,
+    ) -> dict[str, Any]:
+        """Run ``rattler-build test`` on a built package; same summary shape as build."""
+        tool = "rattler_build_test"
+        wd = self._resolve_existing_dir(tool, "working_dir", working_dir)
+        self._rb_existing(tool, "package_file", package_file, wd, file_only=True)
+        channel_list = self._rb_str_list(tool, "channels", channels)
+        extra = self._rb_extra_args(tool, extra_args)
+
+        argv = ["rattler-build", "test", "--package-file", package_file, "--log-style", "json"]
+        for channel in channel_list:
+            argv.extend(["-c", channel])
+        argv.extend(extra)
+        return self._rb_dispatch("test", argv, wd, timeout, background, output_file)
+
+    def rattler_build_result(self, job_id: str, context_lines: int = 20) -> dict[str, Any]:
+        """Filtered summary of a finished rattler_build_build/rattler_build_test background job."""
+        artifact = self.pixi_executor.read_job_artifact(job_id, RATTLER_BUILD_ARTIFACT)
+        if artifact is None:
+            raise ValueError(
+                f"Job {job_id!r} is not a rattler_build_build/rattler_build_test background job"
+            )
+        status = self.pixi_executor.get_job_status(job_id, 1)
+        state = status.get("status")
+        if state == "running" or (state == "unknown" and status.get("retryable")):
+            return {"state": "running", "job_id": job_id}
+        if state != "completed":
+            raise RuntimeError(status.get("error") or f"Job {job_id} is in state {state!r}")
+        text = self.pixi_executor.read_job_output(job_id) or ""
+        return {
+            **summarize_build_log(text, status.get("exit_code"), context_lines=context_lines),
+            "job_id": job_id,
+            "command": artifact.get("command"),
+            "output_file": status.get("output_file"),
+            "execution_time": status.get("execution_time"),
+        }
 
     def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
         """Return the status and output tail of a background pixi task."""
