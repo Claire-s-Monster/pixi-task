@@ -25,6 +25,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -52,8 +53,68 @@ _JOB_ID_RE = re.compile(r"[0-9a-f]{12}")
 _ARTIFACT_NAME_RE = re.compile(r"[a-z0-9_]+\.json")
 
 
+SCOPE_ENV = "PIXI_TASK_JOB_SCOPE"
+SCOPE_PROBE_S = 0.5
+KILLED_MESSAGE = (
+    "process ended without recording an exit code (killed: e.g. a pixi-task "
+    "restart without scope isolation, or SIGKILL)"
+)
+_EXIT_WRAPPER = 'rc=0; "$@" || rc=$?; printf "%s" "$rc" > "$0.tmp" && mv "$0.tmp" "$0"; exit "$rc"'
+
+
 def _is_valid_job_id(job_id: object) -> bool:
     return isinstance(job_id, str) and _JOB_ID_RE.fullmatch(job_id) is not None
+
+
+def should_use_scope(mode: str, systemd_run_available: bool, in_systemd_unit: bool) -> bool:
+    """Decide whether to launch a job in its own systemd scope.
+
+    ``never`` disables, ``always`` needs only systemd-run, anything else is
+    ``auto``: systemd-run present and we are running inside a systemd unit.
+    """
+    if mode == "never" or not systemd_run_available:
+        return False
+    return mode == "always" or in_systemd_unit
+
+
+def wrap_command(command: list[str], exit_path: Path) -> list[str]:
+    """Wrap ``command`` so the shell itself records the exit code in ``exit_path``.
+
+    ``$0`` is the exit file and ``$@`` the untouched original argv, so arguments
+    with spaces or quotes are never re-parsed by the shell.
+    """
+    return ["/bin/sh", "-c", _EXIT_WRAPPER, str(exit_path), *command]
+
+
+def _proc_stat(pid: int) -> tuple[str, str] | None:
+    """(state, start_time_ticks) from /proc/<pid>/stat, or None if unreadable."""
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    fields = raw.rpartition(")")[2].split()
+    if len(fields) < 20:
+        return None
+    return fields[0], fields[19]  # fields 3 (state) and 22 (starttime)
+
+
+def proc_start_time(pid: int) -> str | None:
+    """Process start time (clock ticks since boot) used to guard against PID reuse."""
+    stat = _proc_stat(pid)
+    return stat[1] if stat else None
+
+
+def _executable_found(program: str, working_dir: str | None, env: dict[str, str] | None) -> bool:
+    if "/" in program:
+        return os.access(Path(working_dir or ".") / program, os.X_OK)
+    return shutil.which(program, path=(env or os.environ).get("PATH")) is not None
+
+
+def _read_exit_code(path: Path) -> int | None:
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
 
 
 def _wait_error(job_id: str, message: str, started: float) -> dict[str, Any]:
@@ -133,17 +194,43 @@ class BackgroundJobManager:
                 "error": f"Could not open output file {out_path}: {exc}",
             }
 
+        # The shell wrapper would turn a missing executable into exit 127, so
+        # keep reporting it as a launch error up front.
+        if not _executable_found(command[0], working_dir, env):
+            out_fh.close()
+            return {
+                "status": "error",
+                "job_id": job_id,
+                "task_name": task_name,
+                "command_line": command_line,
+                "error": (
+                    "Failed to launch background task: "
+                    f"[Errno 2] No such file or directory: {command[0]!r}"
+                ),
+            }
+
+        exit_path = job_dir / "exit_code"
+        wrapped = wrap_command(command, exit_path)
+        use_scope = should_use_scope(
+            os.environ.get(SCOPE_ENV, "auto"),
+            shutil.which("systemd-run") is not None,
+            "INVOCATION_ID" in os.environ,
+        )
+        scope_error: str | None = None
+
         try:
-            proc = subprocess.Popen(
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=out_fh,
-                stderr=subprocess.STDOUT,
-                cwd=working_dir,
-                env=env,
-                text=True,
-                start_new_session=True,
-            )
+            if use_scope:
+                proc = self._spawn(
+                    self._scope_argv(job_id, wrapped), out_fh, working_dir, env, True
+                )
+                scope_error = self._scope_launch_error(proc, out_path, exit_path)
+                if scope_error is not None:
+                    use_scope = False
+                    out_fh.close()
+                    out_fh = open(out_path, "w")
+                    proc = self._spawn(wrapped, out_fh, working_dir, env, False)
+            else:
+                proc = self._spawn(wrapped, out_fh, working_dir, env, False)
         except (OSError, ValueError) as exc:
             out_fh.close()
             return {
@@ -154,10 +241,14 @@ class BackgroundJobManager:
                 "error": f"Failed to launch background task: {exc}",
             }
 
+        pid_start = proc_start_time(proc.pid)
         record = {
             "job_id": job_id,
             "proc": proc,
             "pid": proc.pid,
+            "pid_start": pid_start,
+            "scope": use_scope,
+            "exit_path": str(exit_path),
             "output_file": str(out_path),
             "status_file": str(status_path),
             "task_name": task_name,
@@ -177,6 +268,9 @@ class BackgroundJobManager:
                 "status": "running",
                 "job_id": job_id,
                 "pid": proc.pid,
+                "pid_start": pid_start,
+                "scope": use_scope,
+                "scope_error": scope_error,
                 "task_name": task_name,
                 "command_line": command_line,
                 "working_dir": record["working_dir"],
@@ -208,11 +302,72 @@ class BackgroundJobManager:
             "output_file": str(out_path),
             "status_file": str(status_path),
             "started_at": started_at,
+            "scope": use_scope,
+            "scope_error": scope_error,
             "message": (
                 "Task launched in background. Poll pixi_task_status(job_id) for "
                 "completion, or read output_file directly."
             ),
         }
+
+    @staticmethod
+    def _scope_argv(job_id: str, wrapped: list[str]) -> list[str]:
+        return [
+            "systemd-run",
+            "--user",
+            "--scope",
+            "--quiet",
+            "--collect",
+            f"--unit=pixi-task-job-{job_id}",
+            "--",
+            *wrapped,
+        ]
+
+    @staticmethod
+    def _spawn(
+        argv: list[str],
+        out_fh: Any,
+        working_dir: str | None,
+        env: dict[str, str] | None,
+        scoped: bool,
+    ) -> subprocess.Popen[str]:
+        if scoped and env is not None:
+            # systemd-run --user needs the caller's bus location.
+            env = dict(env)
+            for key in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"):
+                if key in os.environ:
+                    env.setdefault(key, os.environ[key])
+        return subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=out_fh,
+            stderr=subprocess.STDOUT,
+            cwd=working_dir,
+            env=env,
+            text=True,
+            start_new_session=True,
+        )
+
+    @staticmethod
+    def _scope_launch_error(proc: Any, out_path: Path, exit_path: Path) -> str | None:
+        """Detect a systemd-run that failed to start the job (no scope, no bus...).
+
+        Only a fast non-zero exit with no exit file (the wrapper never ran) and
+        systemd-style output counts, so a job that ran and failed is never re-run.
+        """
+        try:
+            rc = proc.wait(timeout=SCOPE_PROBE_S)
+        except subprocess.TimeoutExpired:
+            return None
+        if rc == 0 or exit_path.exists():
+            return None
+        try:
+            text = out_path.read_text(errors="replace")
+        except OSError:
+            return None
+        if "Failed to" in text or "bus" in text:
+            return text.strip()[:300] or f"systemd-run exited {rc}"
+        return None
 
     def wait(
         self,
@@ -290,7 +445,7 @@ class BackgroundJobManager:
             "elapsed_s": time.monotonic() - started,
             "matched_lines": matched,
             "output_file": output_file,
-            "error": snap.get("error") if job_status == "unknown" else None,
+            "error": snap.get("error") if job_status in ("unknown", "killed") else None,
             "returned_because": because,
         }
 
@@ -356,14 +511,14 @@ class BackgroundJobManager:
                 }
             output_file = disk.get("output_file")
             disk["output_tail"] = self._read_tail(output_file, tail_lines)
-            # If the file still says running but the pid is dead, the launching
-            # server died mid-job; we can no longer recover the exit code.
-            if disk.get("status") == "running" and not self._pid_alive(disk.get("pid")):
-                disk["status"] = "unknown"
-                disk["error"] = (
-                    "Launching server is no longer running and the job did not "
-                    "record a final status; exit code is unrecoverable."
-                )
+            # status.json still says running but the pid is gone: the launching
+            # server died. The job's own exit file tells us how it ended.
+            if disk.get("status") == "running" and not self._pid_alive(
+                disk.get("pid"), disk.get("pid_start")
+            ):
+                disk = self._recover_dead_job(status_path, disk) | {
+                    "output_tail": disk["output_tail"]
+                }
             return disk
 
         return {
@@ -373,6 +528,37 @@ class BackgroundJobManager:
         }
 
     # ----- internal helpers -------------------------------------------------
+
+    def _recover_dead_job(self, status_path: Path, disk: dict[str, Any]) -> dict[str, Any]:
+        """Resolve a job whose process is gone but whose status.json says running."""
+        disk = {k: v for k, v in disk.items() if k != "output_tail"}
+        exit_path = status_path.with_name("exit_code")
+        rc = _read_exit_code(exit_path)
+        if rc is not None:
+            finished = exit_path.stat().st_mtime
+            try:
+                started = datetime.fromisoformat(disk["started_at"]).timestamp()
+                execution_time: float | None = max(finished - started, 0.0)
+            except (KeyError, TypeError, ValueError):
+                execution_time = None
+            disk |= {
+                "status": "completed",
+                "finished_at": datetime.fromtimestamp(finished, UTC).isoformat(),
+                "execution_time": execution_time,
+                "exit_code": rc,
+                "success": rc == 0,
+            }
+        else:
+            disk |= {
+                "status": "killed",
+                "finished_at": datetime.now(UTC).isoformat(),
+                "exit_code": None,
+                "success": False,
+                "error": KILLED_MESSAGE,
+                "retryable": False,
+            }
+        self._write_status(status_path, disk)
+        return disk
 
     def _wait_and_record(self, record: dict[str, Any], out_fh: Any) -> None:
         """Block on the child, then close the log handle and persist status."""
@@ -394,6 +580,9 @@ class BackgroundJobManager:
         with self._lock:
             if record.get("exit_code") is not None:
                 return
+            file_rc = _read_exit_code(Path(record["exit_path"]))
+            if file_rc is not None:
+                returncode = file_rc
             finished_at = datetime.now(UTC).isoformat()
             execution_time = time.time() - record["start_time"]
             self._write_status(
@@ -402,6 +591,8 @@ class BackgroundJobManager:
                     "status": "completed",
                     "job_id": record["job_id"],
                     "pid": record["pid"],
+                    "pid_start": record["pid_start"],
+                    "scope": record["scope"],
                     "task_name": record["task_name"],
                     "command_line": record["command_line"],
                     "working_dir": record["working_dir"],
@@ -448,6 +639,7 @@ class BackgroundJobManager:
             "execution_time": record.get("execution_time"),
             "exit_code": exit_code,
             "success": exit_code == 0,
+            "scope": record["scope"],
             "output_tail": self._read_tail(record["output_file"], tail_lines),
         }
 
@@ -534,11 +726,14 @@ class BackgroundJobManager:
         return "".join(lines[-tail_lines:])
 
     @staticmethod
-    def _pid_alive(pid: int | None) -> bool:
+    def _pid_alive(pid: int | None, pid_start: str | None = None) -> bool:
+        """True if ``pid`` is a live, non-zombie process (and the same one, if ``pid_start`` given)."""
         if not pid:
             return False
-        try:
-            os.kill(pid, 0)
-        except (OSError, ProcessLookupError):
+        stat = _proc_stat(pid)
+        if stat is None:
             return False
-        return True
+        state, start = stat
+        if state in ("Z", "X"):
+            return False
+        return pid_start is None or start == pid_start
