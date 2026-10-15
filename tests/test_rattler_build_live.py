@@ -33,6 +33,12 @@ package: {{name: probe-ok, version: 0.1.0}}
 build: {{noarch: generic, script: {OK_SCRIPT}}}
 tests: [{{script: ["test -f $PREFIX/share/probe.txt"]}}]
 """,
+    "needsconda": """\
+package: {name: probe-needsconda, version: 0.1.0}
+build:
+  noarch: generic
+  script: ["conda --version", "mkdir -p $PREFIX/share", "echo ok > $PREFIX/share/probe.txt"]
+""",
     "buildfail": """\
 package: {name: probe-buildfail, version: 0.1.0}
 build: {noarch: generic, script: ["echo BUILD-ERROR-MARKER", "exit 3"]}
@@ -74,8 +80,10 @@ def _build_params(live, recipe, **extra):
     }
 
 
-def _background_result(live, recipe):
-    launched = live.call("rattler_build_build", _build_params(live, recipe, background=True))
+def _background_result(live, recipe, **extra):
+    launched = live.call(
+        "rattler_build_build", _build_params(live, recipe, background=True, **extra)
+    )
     assert launched["status"] == "success", launched
     job_id = launched["result"]["job_id"]
     deadline = time.monotonic() + 600
@@ -111,6 +119,17 @@ def test_live_build_failure_background(live):
     assert result["phase"] == "build", result
     assert "Script failed" in result["error"], result
     assert "BUILD-ERROR-MARKER" in str(result["context"]), result
+
+
+@pytest.mark.timeout(900)
+@pytest.mark.skipif(shutil.which("conda") is not None, reason="conda already on PATH")
+def test_live_specs_provide_tool_to_build_script(live):
+    without = _background_result(live, "needsconda")
+    assert without["status"] == "failed", without
+    assert without["phase"] == "build", without
+
+    with_conda = _background_result(live, "needsconda", specs=["conda"])
+    assert with_conda["status"] == "success", with_conda
 
 
 @pytest.mark.timeout(900)

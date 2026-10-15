@@ -17,7 +17,6 @@ from core.conda_smithy import (
     output_tail,
     parse_recipe_lint,
 )
-from core.process import run_with_group_kill
 from core.rattler_build_log import summarize_build_log
 
 from core.config import load_exec_allowlist
@@ -544,6 +543,14 @@ class PixiShellService:
             kind = "file" if file_only else "file or directory"
             raise ValueError(f"{tool}: {label} {value!r} is not an existing {kind} (in {wd})")
 
+    def _rb_with_args(self, tool: str, specs: list[str] | None) -> list[str]:
+        """Validate ``specs`` and expand them to ``--with <spec>`` pairs (pixi exec options)."""
+        spec_list = self._rb_str_list(tool, "specs", specs)
+        for spec in spec_list:
+            if not spec or spec.startswith("-") or "\x00" in spec or "\n" in spec or "\r" in spec:
+                raise ValueError(f"{tool}: invalid spec in specs: {spec!r}")
+        return [part for spec in spec_list for part in ("--with", spec)]
+
     def _rb_extra_args(self, tool: str, extra_args: list[str] | None) -> list[str]:
         args = self._rb_str_list(tool, "extra_args", extra_args)
         if any(a == "--log-style" or a.startswith("--log-style=") for a in args):
@@ -597,6 +604,7 @@ class PixiShellService:
         background: bool = True,
         output_file: str | None = None,
         timeout: int = 3600,
+        specs: list[str] | None = None,
     ) -> dict[str, Any]:
         """Run ``rattler-build build`` with json logs; return/launch a filtered summary."""
         tool = "rattler_build_build"
@@ -613,8 +621,9 @@ class PixiShellService:
             raise ValueError(f"{tool}: test must be one of {RATTLER_TEST_MODES}, got {test!r}")
         channel_list = self._rb_str_list(tool, "channels", channels)
         extra = self._rb_extra_args(tool, extra_args)
+        with_args = self._rb_with_args(tool, specs)
 
-        argv = ["rattler-build", "build", "--recipe", recipe, "--log-style", "json"]
+        argv = [*with_args, "rattler-build", "build", "--recipe", recipe, "--log-style", "json"]
         for variant in variants:
             argv.extend(["-m", variant])
         for flag, value in (("--target-platform", target_platform), ("--output-dir", output_dir)):
@@ -637,6 +646,7 @@ class PixiShellService:
         background: bool = True,
         output_file: str | None = None,
         timeout: int = 1800,
+        specs: list[str] | None = None,
     ) -> dict[str, Any]:
         """Run ``rattler-build test`` on a built package; same summary shape as build."""
         tool = "rattler_build_test"
@@ -644,8 +654,17 @@ class PixiShellService:
         self._rb_existing(tool, "package_file", package_file, wd, file_only=True)
         channel_list = self._rb_str_list(tool, "channels", channels)
         extra = self._rb_extra_args(tool, extra_args)
+        with_args = self._rb_with_args(tool, specs)
 
-        argv = ["rattler-build", "test", "--package-file", package_file, "--log-style", "json"]
+        argv = [
+            *with_args,
+            "rattler-build",
+            "test",
+            "--package-file",
+            package_file,
+            "--log-style",
+            "json",
+        ]
         for channel in channel_list:
             argv.extend(["-c", channel])
         argv.extend(extra)
@@ -1134,246 +1153,3 @@ class PixiShellService:
             self.logging.log_error(error_msg, {"path": path, "template": template, "error": str(e)})
 
             return {"success": False, "message": error_msg, "project_path": path}
-
-    def rattler_build_smart(
-        self,
-        recipe_path: str = ".",
-        target_platform: str | None = None,
-        channels: list[str] | None = None,
-        variant_config: str | None = None,
-        variants: dict[str, str] | None = None,
-        working_dir: str | None = None,
-        timeout: int = 1800,
-    ) -> dict[str, Any]:
-        """
-        Run rattler-build with smart output summarization.
-
-        Parses build output for errors/warnings and returns structured summary.
-
-        Args:
-            recipe_path: Path to recipe.yaml or directory containing it (default: ".")
-            target_platform: Target platform for the build (e.g., "linux-64", "osx-arm64")
-            channels: List of channels to search for dependencies
-            variant_config: Path to variant configuration file
-            variants: Dict of variant overrides (e.g., {"python": "3.12"})
-            working_dir: Working directory for build
-            timeout: Build timeout in seconds (default: 30 minutes)
-
-        Returns: {
-            "status": "success" | "failed" | "error",
-            "duration": float,
-            "errors": list[str],
-            "warnings": list[str],
-            "packages_built": list[str],
-            "output_tail": str,
-            "command": str
-        }
-        """
-        import re
-        import subprocess
-
-        start_time = time.time()
-        working_dir = self._resolve_working_dir(working_dir)
-
-        # Build command
-        cmd = ["rattler-build", "build", "-r", recipe_path]
-
-        if target_platform:
-            cmd.extend(["--target-platform", target_platform])
-
-        if channels:
-            for channel in channels:
-                cmd.extend(["-c", channel])
-
-        if variant_config:
-            cmd.extend(["-m", variant_config])
-
-        if variants:
-            for key, value in variants.items():
-                cmd.extend(["--variant", f"{key}={value}"])
-
-        command_str = " ".join(cmd)
-
-        try:
-            self.logging.log_info(
-                "Starting rattler-build",
-                {
-                    "recipe_path": recipe_path,
-                    "target_platform": target_platform,
-                    "channels": channels,
-                    "variants": variants,
-                    "working_dir": working_dir,
-                },
-            )
-
-            # Run the build
-            result = run_with_group_kill(cmd, cwd=working_dir, timeout=timeout)
-
-            duration = time.time() - start_time
-            output = result.stdout + result.stderr
-
-            # Parse errors and warnings
-            errors = []
-            warnings = []
-            packages_built = []
-
-            # Error patterns
-            error_patterns = [
-                r"error\[.*?\]:\s*(.+)",
-                r"Error:\s*(.+)",
-                r"ERROR:\s*(.+)",
-                r"fatal:\s*(.+)",
-                r"Failed to (.+)",
-                r"Could not (.+)",
-                r"cannot find (.+)",
-                r"undefined reference to (.+)",
-            ]
-
-            # Warning patterns
-            warning_patterns = [
-                r"warning\[.*?\]:\s*(.+)",
-                r"Warning:\s*(.+)",
-                r"WARN:\s*(.+)",
-                r"deprecated:\s*(.+)",
-            ]
-
-            # Package built patterns
-            package_patterns = [
-                r"Successfully built:\s*(.+\.conda)",
-                r"Output:\s*(.+\.conda)",
-                r"Package built:\s*(.+)",
-            ]
-
-            for line in output.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-
-                # Check for errors
-                for pattern in error_patterns:
-                    match = re.search(pattern, line, re.IGNORECASE)
-                    if match:
-                        errors.append(line[:200])  # Truncate long lines
-                        break
-
-                # Check for warnings
-                for pattern in warning_patterns:
-                    match = re.search(pattern, line, re.IGNORECASE)
-                    if match:
-                        warnings.append(line[:200])
-                        break
-
-                # Check for built packages
-                for pattern in package_patterns:
-                    match = re.search(pattern, line, re.IGNORECASE)
-                    if match:
-                        packages_built.append(match.group(1))
-                        break
-
-            # Determine status
-            if result.returncode == 0:
-                status = "success"
-            else:
-                status = "failed"
-
-            # Get last 50 lines of output for context
-            output_lines = output.strip().split("\n")
-            output_tail = "\n".join(output_lines[-50:]) if len(output_lines) > 50 else output
-
-            # Deduplicate errors and warnings
-            errors = list(dict.fromkeys(errors))[:20]  # Max 20 unique errors
-            warnings = list(dict.fromkeys(warnings))[:20]  # Max 20 unique warnings
-
-            self.logging.log_info(
-                "rattler-build completed",
-                {
-                    "status": status,
-                    "duration": duration,
-                    "error_count": len(errors),
-                    "warning_count": len(warnings),
-                    "packages_built": packages_built,
-                    "exit_code": result.returncode,
-                },
-            )
-
-            return {
-                "status": status,
-                "duration": round(duration, 2),
-                "exit_code": result.returncode,
-                "errors": errors,
-                "warnings": warnings,
-                "packages_built": packages_built,
-                "output_tail": output_tail[:4000],  # Limit output size
-                "command": command_str,
-                "working_dir": working_dir,
-            }
-
-        except subprocess.TimeoutExpired:
-            duration = time.time() - start_time
-            error_msg = f"Build timed out after {timeout} seconds"
-
-            self.logging.log_error(
-                error_msg,
-                {
-                    "recipe_path": recipe_path,
-                    "timeout": timeout,
-                    "working_dir": working_dir,
-                },
-            )
-
-            return {
-                "status": "error",
-                "duration": round(duration, 2),
-                "exit_code": -1,
-                "errors": [error_msg],
-                "warnings": [],
-                "packages_built": [],
-                "output_tail": "",
-                "command": command_str,
-                "working_dir": working_dir,
-            }
-
-        except FileNotFoundError:
-            duration = time.time() - start_time
-            error_msg = "rattler-build not found. Install with: pixi global install rattler-build"
-
-            self.logging.log_error(
-                error_msg, {"recipe_path": recipe_path, "working_dir": working_dir}
-            )
-
-            return {
-                "status": "error",
-                "duration": round(duration, 2),
-                "exit_code": -1,
-                "errors": [error_msg],
-                "warnings": [],
-                "packages_built": [],
-                "output_tail": "",
-                "command": command_str,
-                "working_dir": working_dir,
-            }
-
-        except Exception as e:
-            duration = time.time() - start_time
-            error_msg = f"Build failed: {str(e)}"
-
-            self.logging.log_error(
-                error_msg,
-                {
-                    "recipe_path": recipe_path,
-                    "working_dir": working_dir,
-                    "error": str(e),
-                },
-            )
-
-            return {
-                "status": "error",
-                "duration": round(duration, 2),
-                "exit_code": -1,
-                "errors": [error_msg],
-                "warnings": [],
-                "packages_built": [],
-                "output_tail": "",
-                "command": command_str,
-                "working_dir": working_dir,
-            }
