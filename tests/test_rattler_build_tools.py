@@ -6,6 +6,7 @@ JSON log output so the real adapter, BackgroundJobManager and dispatch envelope 
 
 from __future__ import annotations
 
+import json
 import stat
 import time
 from types import SimpleNamespace
@@ -22,8 +23,8 @@ from tests.test_rattler_build_log import BUILD_FAILURE, SOLVE_FAILURE, SUCCESS, 
 FAKE_PIXI = """#!/bin/sh
 D="{d}"
 echo "CWD=$(pwd) ARGS=$@" >> "$D/argv.log"
-case "$2 $3" in
-"rattler-build build"|"rattler-build test")
+case " $* " in
+*" rattler-build build "*|*" rattler-build test "*)
   [ -f "$D/rb_sleep" ] && sleep "$(cat "$D/rb_sleep")"
   cat "$D/rb_out" >&2
   exit "$(cat "$D/rb_exit")" ;;
@@ -235,6 +236,76 @@ def test_build_validation_errors(env, params, needle):
     assert resp["status"] == "error", resp
     assert needle in resp["error"]
     assert not env.argv_log_exists()  # rejected before any pixi call
+
+
+def test_build_specs_become_with_before_rattler_build(env):
+    env.call(
+        "rattler_build_build",
+        {"recipe": "recipe", "specs": ["conda", "zstd"], "background": False},
+    )
+    (argv,) = env.argv_lines()
+    assert argv == [
+        "exec",
+        "--with",
+        "conda",
+        "--with",
+        "zstd",
+        "rattler-build",
+        "build",
+        "--recipe",
+        "recipe",
+        "--log-style",
+        "json",
+    ]
+
+
+def test_test_specs_become_with_before_rattler_build(env):
+    env.call(
+        "rattler_build_test",
+        {"package_file": "pkg.conda", "specs": ["conda", "zstd"], "background": False},
+    )
+    (argv,) = env.argv_lines()
+    assert argv[:7] == ["exec", "--with", "conda", "--with", "zstd", "rattler-build", "test"]
+
+
+def test_no_with_without_specs(env):
+    env.call("rattler_build_build", {"recipe": "recipe", "background": False})
+    env.call("rattler_build_test", {"package_file": "pkg.conda", "background": False})
+    assert all("--with" not in argv for argv in env.argv_lines())
+
+
+def test_background_artifact_keeps_full_argv_with_specs(env):
+    launched = env.call("rattler_build_build", {"recipe": "recipe", "specs": ["conda"]})
+    job_id = launched["result"]["job_id"]
+    artifact = json.loads((env.tmp / "jobs" / job_id / "rattler_build.json").read_text())
+    assert artifact["argv"][:4] == ["--with", "conda", "rattler-build", "build"]
+    _wait_done(env, job_id)
+
+
+@pytest.mark.parametrize("bad", [["-c"], ["--with"], [""], "conda", [1]])
+@pytest.mark.parametrize("tool", ["rattler_build_build", "rattler_build_test"])
+def test_specs_validation_errors(env, tool, bad):
+    base = {"recipe": "recipe"} if tool == "rattler_build_build" else {"package_file": "pkg.conda"}
+    resp = env.call(tool, {**base, "specs": bad})
+    assert resp["status"] == "error", resp
+    assert "specs" in resp["error"] and tool in resp["error"]
+    assert not env.argv_log_exists()
+
+
+def test_specs_in_registry_schemas():
+    iface = LeanMCPInterface(MagicMock())
+    for name in ("rattler_build_build", "rattler_build_test"):
+        prop = iface.tool_registry[name]["schema"]["properties"]["specs"]
+        assert prop["type"] == "array" and prop["items"] == {"type": "string"}
+        assert "pixi exec --with <spec>" in prop["description"]
+
+
+def test_rattler_build_smart_is_retired(env):
+    found = env.iface.dispatch_meta_tool("discover_tools", {"pattern": ""})
+    assert "rattler_build_smart" not in {t["name"] for t in found["available_tools"]}
+    spec = env.iface.dispatch_meta_tool("get_tool_spec", {"tool_name": "rattler_build_smart"})
+    assert "not found" in spec["error"]
+    assert not hasattr(PixiShellService, "rattler_build_smart")
 
 
 def test_test_validation_errors(env):

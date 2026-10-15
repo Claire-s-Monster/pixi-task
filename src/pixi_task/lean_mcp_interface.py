@@ -446,65 +446,6 @@ class LeanMCPInterface:
             ],
         }
 
-        # TIER 5: CONDA PACKAGE BUILD
-        registry["rattler_build_smart"] = {
-            "implementation": self._wrap_tool(self._rattler_build_smart_impl),
-            "description": "Run rattler-build with smart output summarization (errors, warnings, packages built)",
-            "domain": "build",
-            "complexity": "specialized",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "recipe_path": {
-                        "type": "string",
-                        "default": ".",
-                        "description": "Path to recipe.yaml or directory containing it",
-                    },
-                    "target_platform": {
-                        "type": "string",
-                        "description": "Target platform (e.g., 'linux-64', 'osx-arm64', 'win-64')",
-                    },
-                    "channels": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Channels to search for dependencies",
-                    },
-                    "variant_config": {
-                        "type": "string",
-                        "description": "Path to variant configuration file (variants.yaml)",
-                    },
-                    "variants": {
-                        "type": "object",
-                        "additionalProperties": {"type": "string"},
-                        "description": 'Variant overrides as key-value pairs (e.g., {"python": "3.12"})',
-                    },
-                    "working_dir": {
-                        "type": "string",
-                        "description": "Working directory for the build",
-                    },
-                    "timeout": {
-                        "type": "integer",
-                        "default": 1800,
-                        "description": "Build timeout in seconds (default: 30 minutes)",
-                    },
-                },
-            },
-            "examples": [
-                {"recipe_path": "."},
-                {"recipe_path": "./recipe", "target_platform": "linux-64"},
-                {
-                    "recipe_path": ".",
-                    "channels": ["conda-forge"],
-                    "variants": {"python": "3.12"},
-                },
-                {
-                    "recipe_path": "./recipe.yaml",
-                    "variant_config": "./variants.yaml",
-                    "timeout": 3600,
-                },
-            ],
-        }
-
         registry["pixi_search"] = {
             "implementation": self._wrap_tool(self._pixi_search_impl),
             "description": "Search conda channels for packages (pixi search). Returns found plus up to 25 matches (name, version, build, subdir, channel). No manifest needed.",
@@ -719,6 +660,10 @@ class LeanMCPInterface:
 
         # TIER 7: RATTLER-BUILD (via `pixi exec`, json logs, filtered summaries)
         string_list = {"type": "array", "items": {"type": "string"}}
+        specs_prop = {
+            **string_list,
+            "description": "extra conda packages for the build environment, e.g. ['conda']; each becomes `pixi exec --with <spec>`",
+        }
         registry["rattler_build_build"] = {
             "implementation": self._wrap_tool(self._rattler_build_build_impl),
             "description": "Build a conda package with rattler-build (json logs). Background by default: returns a job_id; poll with pixi_wait, then call rattler_build_result for the filtered summary (status, phase render|solve|install|source|patch|build|package|test, error, context, error_block). The full log stays in output_file. A failed build is data (status failed), not an error.",
@@ -744,6 +689,7 @@ class LeanMCPInterface:
                         "description": "Output directory (--output-dir)",
                     },
                     "channels": {**string_list, "description": "Channels, each passed as -c"},
+                    "specs": specs_prop,
                     "skip_existing": {
                         "type": "string",
                         "enum": ["none", "local", "all"],
@@ -804,6 +750,7 @@ class LeanMCPInterface:
                         "description": "Built package file (.conda / .tar.bz2; must exist; relative to working_dir)",
                     },
                     "channels": {**string_list, "description": "Channels, each passed as -c"},
+                    "specs": specs_prop,
                     "extra_args": {
                         **string_list,
                         "description": "Extra rattler-build test args, appended verbatim (not --log-style)",
@@ -1320,6 +1267,7 @@ class LeanMCPInterface:
         background: bool = True,
         output_file: str | None = None,
         timeout: int = 3600,
+        specs: list[str] | None = None,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.rattler_build_build(
             recipe,
@@ -1334,6 +1282,7 @@ class LeanMCPInterface:
             background,
             output_file,
             timeout,
+            specs,
         )
 
     def _rattler_build_test_impl(
@@ -1345,9 +1294,17 @@ class LeanMCPInterface:
         background: bool = True,
         output_file: str | None = None,
         timeout: int = 1800,
+        specs: list[str] | None = None,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.rattler_build_test(
-            package_file, channels, extra_args, working_dir, background, output_file, timeout
+            package_file,
+            channels,
+            extra_args,
+            working_dir,
+            background,
+            output_file,
+            timeout,
+            specs,
         )
 
     def _rattler_build_result_impl(self, job_id: str, context_lines: int = 20) -> dict[str, Any]:
@@ -1452,26 +1409,6 @@ class LeanMCPInterface:
             "registry_size": len(self.tool_registry),
             "protocol_version": "2024-11-05",
         }
-
-    def _rattler_build_smart_impl(
-        self,
-        recipe_path: str = ".",
-        target_platform: str | None = None,
-        channels: list[str] | None = None,
-        variant_config: str | None = None,
-        variants: dict[str, str] | None = None,
-        working_dir: str | None = None,
-        timeout: int = 1800,
-    ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.rattler_build_smart(
-            recipe_path=recipe_path,
-            target_platform=target_platform,
-            channels=channels,
-            variant_config=variant_config,
-            variants=variants,
-            working_dir=working_dir,
-            timeout=timeout,
-        )
 
 
 def apply_token_limits(result: Any, tool_name: str) -> Any:
