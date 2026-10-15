@@ -429,6 +429,10 @@ docs-build = "mkdocs build"
 # =============================================================================
 # BANDIT SECURITY CONFIGURATION (CI Framework Pattern)
 # =============================================================================
+[tool.pixi-task]
+# Tools pixi_exec may run via `pixi exec` (#43). Only this server's own pyproject is read; target repos cannot extend it.
+exec_allowlist = ["rattler-build", "conda-smithy", "grayskull", "conda-forge-linter"]
+
 [tool.bandit]
 exclude_dirs = ["tests", "scripts"]
 skips = ["B101"]  # Allow assert statements
