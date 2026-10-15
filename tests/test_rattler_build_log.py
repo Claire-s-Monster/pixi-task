@@ -353,29 +353,128 @@ def test_ansi_and_non_json_noise_ignored_before_error_block():
     assert "\x1b" not in out["error_block"]
 
 
-def test_patch_application_in_source_span_is_reported_as_patch():
+PATCH_RECIPE = "probe-patch-bad-0.1.0-h4616a5c_0"
+PATCH_OUTER = {"recipe": PATCH_RECIPE, "span_color": PATCH_RECIPE, "name": "Running build for"}
+PATCH_SPANS = [PATCH_OUTER, named("Fetching source code")]
+PATCH_PREAMBLE = PREAMBLE[:4]
+PATCH_SOURCE_LINES = [
+    rec(
+        "Fetching source from path: /tmp/src",
+        target="rattler_build_core::source",
+        spans=PATCH_SPANS,
+    ),
+    rec(
+        "Copied 1 files into isolated environment",
+        target="rattler_build_core::source",
+        spans=PATCH_SPANS,
+    ),
+]
+PATCH_LINE = rec(
+    "Applying patch: /tmp/bad.patch",
+    target="rattler_build_core::source::patch",
+    spans=PATCH_SPANS,
+)
+PATCH_ERROR_BLOCK = [
+    "Error:   × Patch application error: error applying hunk #1: could not find context in",
+    "  │ target file",
+    "  │ ",
+    "  │ Hunk content:",
+    "  │ @@ -1,3 +1,3 @@",
+    "  │  line one",
+    "  │ -line 2",
+    "  │ +line TWO",
+    "  │  line three",
+    "  │ ",
+    "  ╰─▶ error applying hunk #1: could not find context in target file",
+    "      ",
+    "      Hunk content:",
+    "      @@ -1,3 +1,3 @@",
+    "       line one",
+    "      -line 2",
+    "      +line TWO",
+    "       line three",
+    "      ",
+    "",
+]
+PATCH_FAILURE = "\n".join(PATCH_PREAMBLE + PATCH_SOURCE_LINES + [PATCH_LINE] + PATCH_ERROR_BLOCK)
+PATCH_HEADLINE = (
+    "Patch application error: error applying hunk #1: could not find context in target file"
+)
+
+PATCH_OK_BUILD_FAILURE = "\n".join(
+    PATCH_PREAMBLE
+    + PATCH_SOURCE_LINES
+    + [
+        PATCH_LINE,
+        rec(
+            "\nFinalized run dependencies: this output has no run dependencies",
+            target="rattler_build_core::render::resolved_dependencies",
+            spans=[PATCH_OUTER],
+        ),
+        rec(
+            "Installing build environment",
+            target="rattler_build_core::render::solver",
+            spans=[PATCH_OUTER, anon("Installing build environment")],
+        ),
+        rec(
+            "Installing host environment",
+            target="rattler_build_core::render::solver",
+            spans=[PATCH_OUTER, anon("Installing host environment")],
+        ),
+        rec(
+            "line TWO",
+            target=SCRIPT,
+            spans=[PATCH_OUTER, named("Running build script")],
+        ),
+        rec(
+            "+ exit 3",
+            target=SCRIPT,
+            spans=[PATCH_OUTER, named("Running build script")],
+        ),
+        rec(
+            "Script failed with status 3",
+            level="ERROR",
+            target=SCRIPT,
+            spans=[PATCH_OUTER, named("Running build script")],
+        ),
+        "Error:   × Script failed to execute",
+        "",
+    ]
+)
+
+
+def test_failed_patch_is_reported_as_patch_with_joined_headline():
+    out = summarize_build_log(PATCH_FAILURE, exit_code=1)
+    assert out["status"] == "failed"
+    assert out["phase"] == "patch"
+    assert out["error"] == PATCH_HEADLINE
+    assert out["error_count"] == 0
+    assert "Applying patch:" in out["context"]
+
+
+def test_build_failure_after_successful_patch_is_reported_as_build():
+    out = summarize_build_log(PATCH_OK_BUILD_FAILURE, exit_code=1)
+    assert out["phase"] == "build"
+    assert out["error"] == "Script failed with status 3"
+
+
+def test_patch_in_recipe_name_does_not_make_source_failure_a_patch_failure():
+    spans = [
+        {"recipe": "probe-patch-x", "span_color": "probe-patch-x", "name": "Running build for"},
+        named("Fetching source code"),
+    ]
     text = "\n".join(
-        PREAMBLE[:4]
+        PATCH_PREAMBLE
         + [
-            rec(
-                "Applying patch: fix-build.patch",
-                target="rattler_build_core::source",
-                spans=[OUTER, named("Fetching source code")],
-            ),
-            rec(
-                "Still in source span",
-                target="rattler_build_core::source",
-                spans=[OUTER, named("Fetching source code")],
-            ),
-            "Error:   × Failed to apply patch fix-build.patch",
+            rec("Downloading from: https://example.invalid/x.tar.gz", spans=spans),
+            "Error:   × Failed to download from URL: Request failed after 3 retries",
         ]
     )
-    assert summarize_build_log(text, exit_code=1)["phase"] == "patch"
+    assert summarize_build_log(text, exit_code=1)["phase"] == "source"
 
 
-def test_patch_word_in_source_error_headline_is_reported_as_patch():
-    text = "\n".join(PREAMBLE + ["Error:   × Failed to apply patch fix-build.patch"])
-    assert summarize_build_log(text, exit_code=1)["phase"] == "patch"
+def test_record_phase_of_patch_target_is_patch():
+    assert record_phase(json.loads(PATCH_LINE)) == "patch"
 
 
 # --- caps and budget ---------------------------------------------------------
