@@ -10,6 +10,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.conda_smithy import (
+    MAX_CHANGED_FILES,
+    MAX_LINT_ITEMS,
+    count_by_top_dir,
+    output_tail,
+    parse_recipe_lint,
+)
 from core.process import run_with_group_kill
 
 from core.config import load_exec_allowlist
@@ -22,6 +29,8 @@ from core.ports import (
     LoggingPort,
     ValidationPort,
 )
+
+RERENDER_BEFORE_ARTIFACT = "rerender_before.json"
 
 
 class PixiShellService:
@@ -311,6 +320,202 @@ class PixiShellService:
             limit,
             context,
         )
+
+    # ----- conda-smithy tools (issue #44) -----------------------------------
+    # These call `pixi exec conda-smithy ...` directly through the executor port.
+    # They are NOT subject to the pixi_exec allowlist: each dedicated tool is its
+    # own permission. A failed conda-smithy run raises (outer status "error").
+
+    def _smithy_context(self, cwd: str, timeout: int) -> PixiExecutionContext:
+        return PixiExecutionContext(working_dir=cwd, timeout=timeout, capture_output=True)
+
+    def _resolve_existing_dir(self, tool: str, label: str, value: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"{tool}: {label} must be a non-empty string")
+        path = os.path.normpath(self._resolve_working_dir(value))
+        if not Path(path).is_dir():
+            raise ValueError(f"{tool}: {label} {path!r} is not an existing directory")
+        return path
+
+    def _smithy_version(self, context: PixiExecutionContext) -> str:
+        result = self.pixi_executor.run_pixi_exec(["conda-smithy", "--version"], context)
+        if not result.success:
+            raise RuntimeError(
+                f"conda-smithy --version failed (exit {result.exit_code}): "
+                f"{output_tail(result.stdout, result.stderr)}"
+            )
+        return result.stdout.strip()
+
+    def conda_smithy_lint(
+        self,
+        recipe_dir: str,
+        conda_forge: bool = True,
+        feedstock_dir: str | None = None,
+        timeout: int = 300,
+    ) -> dict[str, Any]:
+        """Run ``conda-smithy recipe-lint`` and return parsed lints/hints."""
+        recipe = self._resolve_existing_dir("conda_smithy_lint", "recipe_dir", recipe_dir)
+        argv = ["conda-smithy", "recipe-lint"]
+        if conda_forge:
+            argv.append("--conda-forge")
+        if feedstock_dir is not None:
+            feedstock = self._resolve_existing_dir(
+                "conda_smithy_lint", "feedstock_dir", feedstock_dir
+            )
+            argv.extend(["--feedstock-dir", feedstock])
+        argv.append(recipe)
+
+        context = self._smithy_context(os.path.dirname(recipe), timeout)
+        version = self._smithy_version(context)
+        result = self.pixi_executor.run_pixi_exec(argv, context)
+        parsed = parse_recipe_lint(result.stdout)
+        lints, hints = parsed["lints"], parsed["hints"]
+
+        failure = None
+        if result.exit_code not in (0, 1):
+            failure = "conda-smithy recipe-lint failed"
+        elif result.exit_code == 1 and not lints:
+            failure = "conda-smithy recipe-lint exited 1 without reporting lint"
+        elif result.exit_code == 0 and not (lints or hints or parsed["fine"]):
+            failure = "conda-smithy recipe-lint produced unrecognised output"
+        if failure:
+            raise RuntimeError(
+                f"{failure} (exit {result.exit_code}): {output_tail(result.stdout, result.stderr)}"
+            )
+
+        if lints:
+            status = "lint"
+        elif hints:
+            status = "hints"
+        else:
+            status = "clean"
+        return {
+            "status": status,
+            "lints": lints[:MAX_LINT_ITEMS],
+            "hints": hints[:MAX_LINT_ITEMS],
+            "truncated": len(lints) > MAX_LINT_ITEMS or len(hints) > MAX_LINT_ITEMS,
+            "exit_code": result.exit_code,
+            "recipe_dir": recipe,
+            "conda_smithy_version": version,
+        }
+
+    def _validated_feedstock(self, feedstock_dir: str) -> str:
+        tool = "conda_smithy_rerender"
+        path = self._resolve_existing_dir(tool, "feedstock_dir", feedstock_dir)
+        if not (Path(path) / "conda-forge.yml").is_file():
+            raise ValueError(f"{tool}: {path!r} has no conda-forge.yml (not a feedstock)")
+        if not self.pixi_executor.git_is_work_tree(path):
+            raise ValueError(f"{tool}: {path!r} is not a git work tree")
+        return path
+
+    def _rerender_report(
+        self,
+        feedstock: str,
+        before: dict[str, Any],
+        version: str,
+        exit_code: int,
+        execution_time: float | None,
+    ) -> dict[str, Any]:
+        changed = self.pixi_executor.git_changed_since(feedstock, before)
+        head_after = self.pixi_executor.git_head(feedstock)
+        return {
+            "status": "rerendered",
+            "changed_files": changed[:MAX_CHANGED_FILES],
+            "total_changed": len(changed),
+            "truncated": len(changed) > MAX_CHANGED_FILES,
+            "changed_by_dir": count_by_top_dir(changed),
+            "committed": head_after != before["head"],
+            "head_before": before["head"],
+            "head_after": head_after,
+            "conda_smithy_version": version,
+            "exit_code": exit_code,
+            "execution_time": execution_time,
+            "feedstock_dir": feedstock,
+        }
+
+    def conda_smithy_rerender(
+        self,
+        feedstock_dir: str,
+        commit: str = "none",
+        no_check_uptodate: bool = False,
+        timeout: int = 600,
+        background: bool = False,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Run ``conda-smithy rerender`` and report which files changed (never the full log)."""
+        if commit not in ("none", "auto"):
+            raise ValueError(
+                f"conda_smithy_rerender: commit must be 'none' or 'auto', got {commit!r}"
+            )
+        feedstock = self._validated_feedstock(feedstock_dir)
+
+        argv = ["conda-smithy", "rerender", "--feedstock_directory", feedstock]
+        if commit == "auto":
+            argv.extend(["-c", "auto"])
+        if no_check_uptodate:
+            argv.append("--no-check-uptodate")
+
+        context = self._smithy_context(feedstock, timeout)
+        version = self._smithy_version(context)
+        before = self.pixi_executor.git_snapshot(feedstock)
+
+        if background:
+            launch = self.pixi_executor.launch_pixi_exec_background(
+                argv, context, "conda-smithy:rerender", output_file
+            )
+            if launch.get("status") == "error" or not launch.get("job_id"):
+                raise RuntimeError(f"conda-smithy rerender launch failed: {launch.get('error')}")
+            self.pixi_executor.write_job_artifact(
+                launch["job_id"],
+                RERENDER_BEFORE_ARTIFACT,
+                {
+                    "before": before,
+                    "feedstock_dir": feedstock,
+                    "conda_smithy_version": version,
+                    "commit": commit,
+                },
+            )
+            return {
+                **launch,
+                "before_head": before["head"],
+                "next": "pixi_wait(job_id) then conda_smithy_rerender_result(job_id)",
+            }
+
+        result = self.pixi_executor.run_pixi_exec(argv, context)
+        if not result.success:
+            raise RuntimeError(
+                f"conda-smithy rerender failed (exit {result.exit_code}): "
+                f"{output_tail(result.stdout, result.stderr)}"
+            )
+        return self._rerender_report(
+            feedstock, before, version, result.exit_code, result.execution_time
+        )
+
+    def conda_smithy_rerender_result(self, job_id: str, tail_lines: int = 30) -> dict[str, Any]:
+        """Report the outcome of a background ``conda_smithy_rerender`` job."""
+        artifact = self.pixi_executor.read_job_artifact(job_id, RERENDER_BEFORE_ARTIFACT)
+        if artifact is None:
+            raise ValueError(f"Job {job_id!r} is not a conda_smithy_rerender background job")
+
+        status = self.pixi_executor.get_job_status(job_id, tail_lines)
+        state = status.get("status")
+        if state == "running" or (state == "unknown" and status.get("retryable")):
+            return {"state": "running", "job_id": job_id}
+        if state != "completed":
+            raise RuntimeError(status.get("error") or f"Job {job_id} is in state {state!r}")
+        if status.get("exit_code") != 0:
+            raise RuntimeError(
+                f"conda-smithy rerender failed (exit {status.get('exit_code')}): "
+                f"{output_tail(status.get('output_tail', ''), '', tail_lines)}"
+            )
+        report = self._rerender_report(
+            artifact["feedstock_dir"],
+            artifact["before"],
+            artifact["conda_smithy_version"],
+            0,
+            status.get("execution_time"),
+        )
+        return {**report, "job_id": job_id}
 
     def get_job_status(self, job_id: str, tail_lines: int = 50) -> dict[str, Any]:
         """Return the status and output tail of a background pixi task."""
