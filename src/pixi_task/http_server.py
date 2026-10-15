@@ -327,8 +327,7 @@ class HTTPPixiShellServer:
                                                 "description": (
                                                     "Exact tool name from discover_tools(). "
                                                     "Common: pixi_run_task, pixi_list_tasks, "
-                                                    "pixi_add_dependency, pixi_project_status, "
-                                                    "rattler_build_smart"
+                                                    "pixi_wait, pixi_project_status"
                                                 ),
                                             }
                                         },
