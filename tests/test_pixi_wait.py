@@ -91,11 +91,12 @@ def test_failed_job_without_matches_still_reports_status_and_exit_code(manager):
     assert result["matched_lines"] == []
 
 
-def test_dead_launcher_unknown_status_is_done_not_waiting(manager):
+def test_dead_launcher_killed_status_is_done_not_waiting(manager):
     _fake_job(manager, status="running", exit_code=None, pid=2**22 + 12345)
     result = manager.wait("0123456789ab", wait_s=5)
     assert result["state"] == "done"
-    assert result["job_status"] == "unknown"
+    assert result["job_status"] == "killed"
+    assert "without recording an exit code" in result["error"]
     assert "exit_code" in result
 
 
