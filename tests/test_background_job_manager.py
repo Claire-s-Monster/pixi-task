@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 
 from adapters.background import BackgroundJobManager
@@ -13,6 +14,58 @@ def _wait_for_completion(manager, job_id, timeout=5.0):
             return status
         time.sleep(0.02)
     raise AssertionError(f"job {job_id} did not complete within {timeout}s")
+
+
+def test_completed_status_is_never_visible_before_disk_write(tmp_path, monkeypatch):
+    """Issue #48: in-memory 'completed' must imply status.json is already written."""
+    entered = threading.Event()
+    release = threading.Event()
+    original = BackgroundJobManager._write_status
+
+    def gated_write(status_path, payload):
+        if payload["status"] == "completed":
+            entered.set()
+            release.wait(timeout=5.0)
+        original(status_path, payload)
+
+    monkeypatch.setattr(BackgroundJobManager, "_write_status", staticmethod(gated_write))
+
+    mgr = BackgroundJobManager(base_dir=str(tmp_path))
+    handle = mgr.launch(
+        command=["sh", "-c", "exit 0"],
+        working_dir=str(tmp_path),
+        env=None,
+        task_name="demo",
+        command_line="sh -c 'exit 0'",
+    )
+    job_id = handle["job_id"]
+    try:
+        assert entered.wait(timeout=5.0), "waiter never reached the completed write"
+
+        result: dict = {}
+        done = threading.Event()
+
+        def poll():
+            result["status"] = mgr.status(job_id)
+            done.set()
+
+        poller = threading.Thread(target=poll, daemon=True)
+        poller.start()
+        done.wait(timeout=0.3)
+
+        fresh_status = BackgroundJobManager(base_dir=str(tmp_path)).status(job_id)["status"]
+        assert not done.is_set() or fresh_status == "completed", (
+            "status() reported completed from memory while a fresh manager "
+            f"read '{fresh_status}' from disk"
+        )
+    finally:
+        release.set()
+
+    poller.join(timeout=5.0)
+    assert done.is_set()
+    for status in (mgr.status(job_id), BackgroundJobManager(base_dir=str(tmp_path)).status(job_id)):
+        assert status["status"] == "completed"
+        assert status["exit_code"] == 0
 
 
 def test_launch_returns_running_handle(tmp_path):

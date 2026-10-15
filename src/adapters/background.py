@@ -383,32 +383,37 @@ class BackgroundJobManager:
         self._finalize(record, returncode)
 
     def _finalize(self, record: dict[str, Any], returncode: int) -> None:
-        """Record terminal state for a job (idempotent)."""
+        """Record terminal state for a job (idempotent).
+
+        Invariant: ``record["exit_code"] is not None`` implies ``status.json``
+        has already been written. The disk write happens under the lock and
+        ``exit_code`` is set last, so concurrent finalizers block until it is done.
+        """
         with self._lock:
             if record.get("exit_code") is not None:
                 return
             finished_at = datetime.now(UTC).isoformat()
             execution_time = time.time() - record["start_time"]
-            record["exit_code"] = returncode
+            self._write_status(
+                Path(record["status_file"]),
+                {
+                    "status": "completed",
+                    "job_id": record["job_id"],
+                    "pid": record["pid"],
+                    "task_name": record["task_name"],
+                    "command_line": record["command_line"],
+                    "working_dir": record["working_dir"],
+                    "output_file": record["output_file"],
+                    "started_at": record["started_at"],
+                    "finished_at": finished_at,
+                    "execution_time": execution_time,
+                    "exit_code": returncode,
+                    "success": returncode == 0,
+                },
+            )
             record["finished_at"] = finished_at
             record["execution_time"] = execution_time
-        self._write_status(
-            Path(record["status_file"]),
-            {
-                "status": "completed",
-                "job_id": record["job_id"],
-                "pid": record["pid"],
-                "task_name": record["task_name"],
-                "command_line": record["command_line"],
-                "working_dir": record["working_dir"],
-                "output_file": record["output_file"],
-                "started_at": record["started_at"],
-                "finished_at": finished_at,
-                "execution_time": execution_time,
-                "exit_code": returncode,
-                "success": returncode == 0,
-            },
-        )
+            record["exit_code"] = returncode
 
     def _running_payload(self, record: dict[str, Any], tail_lines: int | None) -> dict[str, Any]:
         return {
