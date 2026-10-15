@@ -49,6 +49,7 @@ TAIL_BYTES = 8192
 # launch() generates job ids as uuid4().hex[:12]; anything else is never a real
 # job and must not be used as a path component.
 _JOB_ID_RE = re.compile(r"[0-9a-f]{12}")
+_ARTIFACT_NAME_RE = re.compile(r"[a-z0-9_]+\.json")
 
 
 def _is_valid_job_id(job_id: object) -> bool:
@@ -449,18 +450,52 @@ class BackgroundJobManager:
             "output_tail": self._read_tail(record["output_file"], tail_lines),
         }
 
+    def _artifact_path(self, job_id: str, name: str) -> Path:
+        if not _is_valid_job_id(job_id):
+            raise ValueError(f"No background job found with id '{job_id}'.")
+        if not _ARTIFACT_NAME_RE.fullmatch(name) or name == "status.json":
+            raise ValueError(f"Invalid artifact name: {name!r}")
+        return self._base / job_id / name
+
+    def write_job_artifact(self, job_id: str, name: str, data: dict[str, Any]) -> None:
+        """Atomically persist a small JSON artifact in the job's directory."""
+        path = self._artifact_path(job_id, name)
+        if not path.parent.is_dir():
+            raise ValueError(f"No background job found with id '{job_id}'.")
+        self._atomic_write_json(path, data)
+
+    def read_job_artifact(self, job_id: str, name: str) -> dict[str, Any] | None:
+        """Read a JSON artifact written by write_job_artifact; None if absent."""
+        path = self._artifact_path(job_id, name)
+        try:
+            loaded: dict[str, Any] = json.loads(path.read_text())
+        except FileNotFoundError:
+            return None
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Could not read artifact {name} of job {job_id}: {exc}") from exc
+        return loaded
+
+    @staticmethod
+    def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+        """Write JSON via a temp file in the same dir + os.replace; raises OSError."""
+        tmp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex[:8]}.tmp")
+        try:
+            tmp_path.write_text(json.dumps(payload, indent=2))
+            os.replace(tmp_path, path)
+        except OSError:
+            tmp_path.unlink(missing_ok=True)
+            raise
+
     @staticmethod
     def _write_status(status_path: Path, payload: dict[str, Any]) -> None:
         """Write status.json atomically (temp file in the same dir + os.replace).
 
         Readers (status(), pixi_wait) therefore never observe a half-written file.
         """
-        tmp_path = status_path.with_name(f"{status_path.name}.{uuid.uuid4().hex[:8]}.tmp")
         try:
-            tmp_path.write_text(json.dumps(payload, indent=2))
-            os.replace(tmp_path, status_path)
+            BackgroundJobManager._atomic_write_json(status_path, payload)
         except OSError:
-            tmp_path.unlink(missing_ok=True)
+            pass
 
     @staticmethod
     def _read_tail(output_file: str | None, tail_lines: int | None) -> str:

@@ -18,6 +18,7 @@ from core.models import (
 from core.ports import PixiExecutorPort, LoggingPort, ValidationPort, EnvironmentPort
 from core.process import run_with_group_kill
 from adapters.background import BackgroundJobManager
+from adapters.git_snapshot import changed_since, current_head, is_git_work_tree, take_snapshot
 
 
 MAX_SEARCH_LIMIT = 50
@@ -406,6 +407,81 @@ class PixiExecutionAdapter(PixiExecutorPort):
             command_line=command_line,
             output_file=output_file,
         )
+
+    def run_pixi_exec(self, argv_tail: list[str], context: PixiExecutionContext) -> PixiTaskResult:
+        """Run ``pixi exec <argv_tail...>`` and wait; a non-zero exit is returned as data.
+
+        Used by the dedicated conda-smithy tools. These invoke the fixed tool
+        directly and are deliberately NOT subject to the pixi_exec allowlist:
+        each dedicated tool is its own permission.
+        """
+        command = [context.pixi_executable, "exec", *argv_tail]
+        task_name = f"exec:{argv_tail[0]}" if argv_tail else "exec"
+        stdout, stderr, exit_code, execution_time = self._execute_with_timeout(
+            command=command,
+            timeout_seconds=context.timeout,
+            working_dir=context.working_dir,
+            env=context.get_full_env(),
+        )
+        common: dict[str, Any] = {
+            "task_name": task_name,
+            "stdout": stdout,
+            "stderr": stderr,
+            "execution_time": execution_time,
+            "working_dir": context.working_dir,
+            "command_line": " ".join(command),
+            "environment": context.environment_vars,
+        }
+        if exit_code == 0:
+            return PixiTaskResult.create_success(**common)
+        return PixiTaskResult.create_failure(exit_code=exit_code, **common)
+
+    def launch_pixi_exec_background(
+        self,
+        argv_tail: list[str],
+        context: PixiExecutionContext,
+        task_name: str,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch ``pixi exec <argv_tail...>`` detached (see run_pixi_exec for the allowlist note)."""
+        command = [context.pixi_executable, "exec", *argv_tail]
+        command_line = " ".join(command)
+        self.logging.log_info(
+            "Launching background pixi exec",
+            {"task_name": task_name, "command": command_line, "working_dir": context.working_dir},
+        )
+        return self.jobs.launch(
+            command=command,
+            working_dir=context.working_dir,
+            env=context.get_full_env(),
+            task_name=task_name,
+            command_line=command_line,
+            output_file=output_file,
+        )
+
+    def write_job_artifact(self, job_id: str, name: str, data: dict[str, Any]) -> None:
+        """Persist a JSON artifact in the job's directory."""
+        self.jobs.write_job_artifact(job_id, name, data)
+
+    def read_job_artifact(self, job_id: str, name: str) -> dict[str, Any] | None:
+        """Read a JSON artifact from the job's directory (None if absent)."""
+        return self.jobs.read_job_artifact(job_id, name)
+
+    def git_is_work_tree(self, repo: str) -> bool:
+        """Delegate to adapters.git_snapshot.is_git_work_tree."""
+        return is_git_work_tree(repo)
+
+    def git_snapshot(self, repo: str) -> dict[str, Any]:
+        """Delegate to adapters.git_snapshot.take_snapshot."""
+        return take_snapshot(repo)
+
+    def git_changed_since(self, repo: str, before: dict[str, Any]) -> list[str]:
+        """Delegate to adapters.git_snapshot.changed_since."""
+        return changed_since(repo, before)
+
+    def git_head(self, repo: str) -> str | None:
+        """Delegate to adapters.git_snapshot.current_head."""
+        return current_head(repo)
 
     def search_packages(
         self,

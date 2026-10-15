@@ -607,6 +607,116 @@ class LeanMCPInterface:
             ],
         }
 
+        # TIER 6: CONDA-FORGE FEEDSTOCK TOOLS (conda-smithy via `pixi exec`)
+        registry["conda_smithy_lint"] = {
+            "implementation": self._wrap_tool(self._conda_smithy_lint_impl),
+            "description": "Lint a conda recipe with conda-smithy recipe-lint. Returns status clean|hints|lint plus parsed lints and hints (max 50 each). A crashed run raises. Recipes outside a feedstock (staged-recipes) will show a 'no .ci_support files' lint with conda_forge=true.",
+            "domain": "conda-forge",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "recipe_dir": {
+                        "type": "string",
+                        "description": "Recipe directory (relative paths resolve against the server's base directory)",
+                    },
+                    "conda_forge": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Apply conda-forge specific lint rules (--conda-forge)",
+                    },
+                    "feedstock_dir": {
+                        "type": "string",
+                        "description": "Feedstock directory (--feedstock-dir), if the recipe belongs to one",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 300,
+                        "description": "Timeout in seconds",
+                    },
+                },
+                "required": ["recipe_dir"],
+            },
+            "examples": [
+                {"recipe_dir": "/path/to/zig-feedstock/recipe"},
+                {"recipe_dir": "recipes/foo", "conda_forge": False},
+                {
+                    "recipe_dir": "/path/to/foo-feedstock/recipe",
+                    "feedstock_dir": "/path/to/foo-feedstock",
+                },
+            ],
+        }
+
+        registry["conda_smithy_rerender"] = {
+            "implementation": self._wrap_tool(self._conda_smithy_rerender_impl),
+            "description": "Rerender a conda-forge feedstock with conda-smithy and report changed files (never the full log). Needs a git work tree with conda-forge.yml. Failures (missing token, bad YAML) raise. commit=auto lets conda-smithy commit; background=true returns a job_id (poll with pixi_wait, then conda_smithy_rerender_result).",
+            "domain": "conda-forge",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "feedstock_dir": {
+                        "type": "string",
+                        "description": "Feedstock directory (must contain conda-forge.yml and be a git work tree)",
+                    },
+                    "commit": {
+                        "type": "string",
+                        "enum": ["none", "auto"],
+                        "default": "none",
+                        "description": "'auto' passes -c auto so conda-smithy commits the rerender; 'none' leaves changes uncommitted",
+                    },
+                    "no_check_uptodate": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Pass --no-check-uptodate",
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "default": 600,
+                        "description": "Timeout in seconds (foreground only)",
+                    },
+                    "background": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Run detached and return a job_id; finish with conda_smithy_rerender_result",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "When background=true, write combined output to this path",
+                    },
+                },
+                "required": ["feedstock_dir"],
+            },
+            "examples": [
+                {"feedstock_dir": "/path/to/foo-feedstock"},
+                {"feedstock_dir": "/path/to/foo-feedstock", "commit": "auto"},
+                {"feedstock_dir": "/path/to/foo-feedstock", "background": True},
+            ],
+        }
+
+        registry["conda_smithy_rerender_result"] = {
+            "implementation": self._wrap_tool(self._conda_smithy_rerender_result_impl),
+            "description": "Outcome of a background conda_smithy_rerender job: state running while it runs, the changed-files report once done, an error if conda-smithy failed.",
+            "domain": "conda-forge",
+            "complexity": "extended",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "Job id returned by conda_smithy_rerender(background=true)",
+                    },
+                    "tail_lines": {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Output lines included in the error if the job failed",
+                    },
+                },
+                "required": ["job_id"],
+            },
+            "examples": [{"job_id": "a1b2c3d4e5f6"}],
+        }
+
         return registry
 
     def _wrap_tool(self, tool_func):
@@ -1020,6 +1130,35 @@ class LeanMCPInterface:
         return self.business_engine.pixi_service.exec_tool(
             tool, args, specs, channels, working_dir, timeout, background, output_file
         )
+
+    def _conda_smithy_lint_impl(
+        self,
+        recipe_dir: str,
+        conda_forge: bool = True,
+        feedstock_dir: str | None = None,
+        timeout: int = 300,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.conda_smithy_lint(
+            recipe_dir, conda_forge, feedstock_dir, timeout
+        )
+
+    def _conda_smithy_rerender_impl(
+        self,
+        feedstock_dir: str,
+        commit: str = "none",
+        no_check_uptodate: bool = False,
+        timeout: int = 600,
+        background: bool = False,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.conda_smithy_rerender(
+            feedstock_dir, commit, no_check_uptodate, timeout, background, output_file
+        )
+
+    def _conda_smithy_rerender_result_impl(
+        self, job_id: str, tail_lines: int = 30
+    ) -> dict[str, Any]:
+        return self.business_engine.pixi_service.conda_smithy_rerender_result(job_id, tail_lines)
 
     def _pixi_list_tasks_impl(
         self,

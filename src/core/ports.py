@@ -82,6 +82,52 @@ class PixiExecutorPort(ABC):
         pass
 
     @abstractmethod
+    def run_pixi_exec(self, argv_tail: list[str], context: PixiExecutionContext) -> PixiTaskResult:
+        """Run ``pixi exec <argv_tail...>`` (blocking); a non-zero exit is returned as data."""
+        pass
+
+    @abstractmethod
+    def launch_pixi_exec_background(
+        self,
+        argv_tail: list[str],
+        context: PixiExecutionContext,
+        task_name: str,
+        output_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Launch ``pixi exec <argv_tail...>`` as a detached background job."""
+        pass
+
+    @abstractmethod
+    def write_job_artifact(self, job_id: str, name: str, data: dict[str, Any]) -> None:
+        """Persist a small JSON artifact next to a background job's status file."""
+        pass
+
+    @abstractmethod
+    def read_job_artifact(self, job_id: str, name: str) -> dict[str, Any] | None:
+        """Read a job artifact; None when it does not exist."""
+        pass
+
+    @abstractmethod
+    def git_is_work_tree(self, repo: str) -> bool:
+        """True when ``repo`` is inside a git work tree."""
+        pass
+
+    @abstractmethod
+    def git_snapshot(self, repo: str) -> dict[str, Any]:
+        """JSON-serialisable snapshot of HEAD plus content hashes of dirty paths."""
+        pass
+
+    @abstractmethod
+    def git_changed_since(self, repo: str, before: dict[str, Any]) -> list[str]:
+        """Sorted repo-relative paths committed or modified since ``before``."""
+        pass
+
+    @abstractmethod
+    def git_head(self, repo: str) -> str | None:
+        """Current HEAD sha, or None on an unborn branch."""
+        pass
+
+    @abstractmethod
     def search_packages(
         self,
         spec: str,

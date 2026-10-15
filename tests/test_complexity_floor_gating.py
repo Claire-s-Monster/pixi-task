@@ -28,6 +28,9 @@ HTTP_EXPOSED = {
     "pixi_info",
     "pixi_project_status",
     "pixi_list_dependencies",
+    "conda_smithy_lint",
+    "conda_smithy_rerender",
+    "conda_smithy_rerender_result",
 }
 
 
