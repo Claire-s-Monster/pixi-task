@@ -113,6 +113,30 @@ def test_live_solve_failure(live):
 
 
 @pytest.mark.timeout(900)
+def test_live_patch_failure(live):
+    (live.tmp / "src").mkdir()
+    (live.tmp / "src" / "hello.txt").write_text("line one\nline two\nline three\n")
+    (live.tmp / "bad.patch").write_text(
+        "--- a/hello.txt\n+++ b/hello.txt\n@@ -1,3 +1,3 @@\n line one\n-line 2\n+line TWO\n line three\n"
+    )
+    (live.tmp / "patchfail").mkdir()
+    (live.tmp / "patchfail" / "recipe.yaml").write_text(
+        "package: {name: probe-patch-bad, version: 0.1.0}\n"
+        "source: {path: ../src, patches: [../bad.patch]}\n"
+        'build: {noarch: generic, script: ["echo hi"]}\n'
+    )
+    resp = live.call(
+        "rattler_build_build",
+        _build_params(live, "patchfail", background=False, timeout=600),
+    )
+    assert resp["status"] == "success", resp
+    result = resp["result"]
+    assert result["status"] == "failed", result
+    assert result["phase"] == "patch", result
+    assert "could not find context" in result["error"], result
+
+
+@pytest.mark.timeout(900)
 def test_live_build_failure_background(live):
     result = _background_result(live, "buildfail")
     assert result["status"] == "failed", result

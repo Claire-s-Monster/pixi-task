@@ -27,8 +27,8 @@ MIN_KEPT_LINES = 5
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _ARCHIVE = re.compile(r"^Archive written to '(.+)'$")
-_APPLY_PATCH = re.compile(r"(?i)\bapply(?:ing)? patch")
 _PATCH_WORD = re.compile(r"(?i)\bpatch\b")
+_MIETTE_BAR = re.compile(r"^\s*│")
 _MIETTE_CAUSE = re.compile(r"^\s*[╰├]─+▶\s*")
 
 _SPAN_PHASES = {
@@ -60,8 +60,11 @@ def record_phase(record: dict[str, Any]) -> str | None:
     """Build phase of one JSON log record, from its innermost meaningful span.
 
     The outer "Running build for" span carries no phase, so records that only
-    have it return None and the caller keeps the previous phase.
+    have it return None and the caller keeps the previous phase. Patch records
+    are logged inside the "Fetching source code" span, so the target wins.
     """
+    if str(record.get("target", "")).startswith("rattler_build_core::source::patch"):
+        return "patch"
     spans = record.get("spans") or ([record["span"]] if record.get("span") else [])
     for span in reversed(spans):
         if isinstance(span, dict) and (phase := _span_phase(span)):
@@ -94,9 +97,16 @@ def _headline(block: list[str]) -> str | None:
     """``<title>: <cause>`` from a miette block, with hard-wrapped cause lines joined."""
     if not block:
         return None
-    head = block[0].removeprefix("Error:").strip().lstrip("×").strip()
+    title = [block[0].removeprefix("Error:").strip().lstrip("×").strip()]
+    rest = block[1:]
+    # miette wraps a long title onto "│ ..." lines that end at a bare "│".
+    while rest and (bar := _MIETTE_BAR.match(rest[0])) and rest[0][bar.end() :].strip():
+        title.append(rest.pop(0)[bar.end() :].strip())
+    while rest and _MIETTE_BAR.match(rest[0]):
+        rest.pop(0)
+    head = " ".join(title)
     cause: list[str] = []
-    for line in block[1:]:
+    for line in rest:
         marker = _MIETTE_CAUSE.match(line)
         if not cause:
             if not marker:
@@ -106,8 +116,10 @@ def _headline(block: list[str]) -> str | None:
             break
         else:
             cause.append(line.strip())
-    text = f"{head}: {' '.join(cause)}" if cause else head
-    return _clip(text, MAX_HEADLINE_CHARS)
+    joined = " ".join(cause)
+    if joined and joined not in head:
+        head = f"{head}: {joined}"
+    return _clip(head, MAX_HEADLINE_CHARS)
 
 
 def _cap_block(block: list[str]) -> list[str]:
@@ -182,8 +194,6 @@ def summarize_build_log(
         # Patches are applied inside the source span; keep "patch" once seen.
         if span_phase is not None and not (span_phase == "source" and phase == "patch"):
             phase = span_phase
-        if phase == "source" and _APPLY_PATCH.search(message):
-            phase = "patch"
 
         level = record.get("level")
         if level == "ERROR":
