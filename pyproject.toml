@@ -363,7 +363,7 @@ emergency-fix = "pixi run lint-fix && pixi run format && pixi run test"
 # ===== TIER 2: SECURITY & COMPLIANCE TASKS =====
 
 # Security Scanning (CI Framework patterns)
-security-scan = "bandit -r src/ --severity-level high --exclude tests/"
+security-scan = "pixi run -e quality-extended bandit -r src/ --severity-level high --exclude tests/"
 safety-check = "safety check --ignore=70929 --ignore=70912"  # Common false positives
 pip-audit-scan = "pip-audit --verbose --desc"
 complexity-check = "radon cc src/ --min B"
