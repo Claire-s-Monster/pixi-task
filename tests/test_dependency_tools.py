@@ -217,6 +217,36 @@ def test_remove_output_shape(project, monkeypatch):
     assert result.data["exit_code"] == 0
 
 
+@pytest.mark.parametrize(
+    "note",
+    [
+        "Added these only for feature: extra",
+        "Added these only for platform(s): linux-64",
+    ],
+)
+def test_add_ignores_note_lines(project, monkeypatch, note):
+    captured: dict = {}
+    stderr = f"\x1b[32m✔\x1b[0m Added tomli >=2.5.0,<3\n{note}\n"
+    monkeypatch.setattr(project_module.subprocess, "run", _fake_run(captured, stderr=stderr))
+    result = _adapter().add_dependency(["tomli"], working_dir=str(project))
+    assert result.data["added"] == ["tomli >=2.5.0,<3"]
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        "Removed these only for feature: extra",
+        "Removed these only for platform(s): linux-64",
+    ],
+)
+def test_remove_ignores_note_lines(project, monkeypatch, note):
+    captured: dict = {}
+    stderr = f"\x1b[32m✔\x1b[0m Removed tomli\n{note}\n"
+    monkeypatch.setattr(project_module.subprocess, "run", _fake_run(captured, stderr=stderr))
+    result = _adapter().remove_dependency(["tomli"], working_dir=str(project))
+    assert result.data["removed"] == ["tomli"]
+
+
 def test_failure_returns_short_stderr_tail(project, monkeypatch):
     captured: dict = {}
     stderr = "\n".join(f"line {i}" for i in range(200))
