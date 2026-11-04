@@ -247,6 +247,77 @@ def test_remove_ignores_note_lines(project, monkeypatch, note):
     assert result.data["removed"] == ["tomli"]
 
 
+# --- dangling feature warning ---------------------------------------------
+
+_BASE = '[project]\nname = "demo"\n'
+
+
+def _remove_with_manifest(project, monkeypatch, before, after, name="pixi.toml", verb="remove"):
+    (project / name).write_text(before)
+    if name == "pyproject.toml":
+        (project / "pixi.toml").unlink()
+    monkeypatch.setattr(
+        project_module.subprocess,
+        "run",
+        _fake_run({}, mutate=lambda: (project / name).write_text(after)),
+    )
+    return getattr(_adapter(), f"{verb}_dependency")(
+        ["x"], feature="extra", working_dir=str(project)
+    )
+
+
+_WITH_FEATURE = _BASE + '[feature.extra.dependencies]\nx = "*"\n'
+
+
+def test_remove_dangling_list_environment_warns(project, monkeypatch):
+    after = _BASE + '[environments]\nextra = ["extra"]\n'
+    result = _remove_with_manifest(project, monkeypatch, _WITH_FEATURE + "[environments]\n", after)
+    assert result.success is True
+    assert len(result.data["warnings"]) == 1
+    warning = result.data["warnings"][0]
+    assert "'extra'" in warning and "no longer exists" in warning
+
+
+def test_remove_dangling_table_environment_warns(project, monkeypatch):
+    after = _BASE + '[environments]\nextra = { features = ["extra"], solve-group = "g" }\n'
+    result = _remove_with_manifest(project, monkeypatch, _WITH_FEATURE, after)
+    assert result.success is True
+    assert "extra" in result.data["warnings"][0]
+
+
+@pytest.mark.parametrize(
+    "feature_table",
+    [
+        '[feature.extra.dependencies]\ny = "*"\n',
+        '[feature.extra.tasks]\nt = "echo"\n',
+        "[feature.extra]\n",
+    ],
+)
+def test_remove_existing_feature_no_warning(project, monkeypatch, feature_table):
+    after = _BASE + feature_table + '[environments]\nextra = ["extra"]\ndefault = ["default"]\n'
+    result = _remove_with_manifest(project, monkeypatch, _WITH_FEATURE, after)
+    assert "warnings" not in result.data
+
+
+def test_remove_dangling_pyproject_variant_warns(project, monkeypatch):
+    before = '[tool.pixi.feature.extra.dependencies]\nx = "*"\n'
+    after = '[tool.pixi.project]\nname = "d"\n[tool.pixi.environments]\nextra = ["extra"]\n'
+    result = _remove_with_manifest(project, monkeypatch, before, after, name="pyproject.toml")
+    assert "extra" in result.data["warnings"][0]
+
+
+def test_add_never_warns(project, monkeypatch):
+    after = _BASE + '[environments]\nextra = ["extra"]\n'
+    result = _remove_with_manifest(project, monkeypatch, _BASE, after, verb="add")
+    assert "warnings" not in result.data
+
+
+def test_remove_unparseable_manifest_no_warning(project, monkeypatch):
+    result = _remove_with_manifest(project, monkeypatch, _WITH_FEATURE, "[environments\nextra = [")
+    assert result.success is True
+    assert "warnings" not in result.data
+
+
 def test_failure_returns_short_stderr_tail(project, monkeypatch):
     captured: dict = {}
     stderr = "\n".join(f"line {i}" for i in range(200))

@@ -47,6 +47,30 @@ def _snapshot_project_files(working_dir: str) -> dict[str, str]:
     return digests
 
 
+def _dangling_feature_warnings(working_dir: str) -> list[str]:
+    """Warn about environments that reference features missing from the manifest."""
+    try:
+        root = Path(working_dir)
+        if (root / "pixi.toml").is_file():
+            manifest = toml.loads((root / "pixi.toml").read_text())
+        else:
+            manifest = toml.loads((root / "pyproject.toml").read_text())["tool"]["pixi"]
+        defined = set(manifest.get("feature", {})) | {"default"}
+        warnings: list[str] = []
+        for env, spec in manifest.get("environments", {}).items():
+            features = spec.get("features", []) if isinstance(spec, dict) else spec
+            for feat in features:
+                if feat not in defined:
+                    warnings.append(
+                        f"environment '{env}' references feature '{feat}', which no longer "
+                        "exists in the manifest; every later pixi add will fail. "
+                        "Re-add the feature or drop the environment."
+                    )
+        return warnings
+    except Exception:
+        return []
+
+
 def _parse_reported_specs(output: str, kind: str) -> list[str]:
     """Extract specs from pixi's 'Added <spec>' / 'Removed <spec>' lines."""
     wanted = kind.capitalize()
@@ -321,6 +345,10 @@ class PixiProjectAdapter(PixiProjectPort):
             execution_time = time.time() - start_time
 
             if result.returncode == 0:
+                if verb == "remove":
+                    warnings = _dangling_feature_warnings(working_dir)
+                    if warnings:
+                        data["warnings"] = warnings
                 return PixiOperationResult.success_result(
                     message=f"Successfully {done} {len(packages)} package(s)",
                     operation_type=operation_type,

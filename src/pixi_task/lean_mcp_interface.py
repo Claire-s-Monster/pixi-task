@@ -388,7 +388,7 @@ class LeanMCPInterface:
 
         registry["pixi_remove_dependency"] = {
             "implementation": self._wrap_tool(self._pixi_remove_dependency_impl),
-            "description": "Remove conda dependencies from pixi project (compact result)",
+            "description": "Remove conda dependencies from pixi project (compact result; warns on dangling feature refs)",
             "domain": "dependency",
             "complexity": "extended",
             "schema": {
