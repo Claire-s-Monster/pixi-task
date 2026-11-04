@@ -23,6 +23,7 @@ from core.ports import PixiProjectPort, LoggingPort, EnvironmentPort
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _REPORT_RE = re.compile(r"\b(Added|Removed)\s+(\S.*)$")
+_NOTE_PREFIX = "these only for"  # "Added these only for feature: x" is a note, not a spec
 _TRACKED_FILES = ("pixi.toml", "pyproject.toml", "pixi.lock")
 _STDERR_TAIL_LINES = 8
 
@@ -53,7 +54,9 @@ def _parse_reported_specs(output: str, kind: str) -> list[str]:
     for line in _ANSI_RE.sub("", output).splitlines():
         match = _REPORT_RE.search(line.strip())
         if match and match.group(1) == wanted:
-            found.append(match.group(2).strip())
+            spec = match.group(2).strip()
+            if not spec.lower().startswith(_NOTE_PREFIX):
+                found.append(spec)
     return found
 
 
