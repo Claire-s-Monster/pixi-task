@@ -86,7 +86,7 @@ def test_add_dependency_uses_default_pixi_executable(tmp_path, monkeypatch):
     monkeypatch.setattr(project_module.subprocess, "run", fake_run)
 
     adapter = make_project_adapter()
-    adapter.add_dependency("numpy", working_dir=str(tmp_path))
+    adapter.add_dependency(["numpy"], working_dir=str(tmp_path))
 
     assert captured["cmd"][0] == "/sentinel/bin/pixi"
 
@@ -106,7 +106,7 @@ def test_remove_dependency_uses_default_pixi_executable(tmp_path, monkeypatch):
     monkeypatch.setattr(project_module.subprocess, "run", fake_run)
 
     adapter = make_project_adapter()
-    adapter.remove_dependency("numpy", working_dir=str(tmp_path))
+    adapter.remove_dependency(["numpy"], working_dir=str(tmp_path))
 
     assert captured["cmd"][0] == "/sentinel/bin/pixi"
 

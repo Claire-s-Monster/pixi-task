@@ -28,6 +28,8 @@ HTTP_EXPOSED = {
     "pixi_info",
     "pixi_project_status",
     "pixi_list_dependencies",
+    "pixi_add_dependency",
+    "pixi_remove_dependency",
     "conda_smithy_lint",
     "conda_smithy_rerender",
     "conda_smithy_rerender_result",
@@ -70,7 +72,7 @@ def test_specialized_tool_blocked_under_http_floor():
     # pick a known specialized tool
     result = iface.dispatch_meta_tool(
         "execute_tool",
-        {"tool_name": "pixi_add_dependency", "parameters": {}},
+        {"tool_name": "pixi_init", "parameters": {}},
     )
     assert result.get("status") == "error"
     assert "not exposed" in result.get("error", "").lower()
@@ -79,9 +81,9 @@ def test_specialized_tool_blocked_under_http_floor():
 def test_specialized_tool_visible_under_stdio_floor():
     """The same specialized tool must be visible (discoverable) under stdio."""
     iface = _build_interface(None)
-    result = iface.dispatch_meta_tool("discover_tools", {"pattern": "add_dependency"})
+    result = iface.dispatch_meta_tool("discover_tools", {"pattern": "pixi_init"})
     names = {t["name"] for t in result["available_tools"]}
-    assert "pixi_add_dependency" in names
+    assert "pixi_init" in names
 
 
 def test_discover_tools_description_does_not_hardcode_count():
