@@ -971,15 +971,16 @@ class PixiShellService:
 
     def add_dependency(
         self,
-        package: str,
+        packages: list[str],
         channel: str | None = None,
-        is_dev: bool = False,
+        feature: str | None = None,
+        platform: list[str] | None = None,
         working_dir: str | None = None,
     ) -> dict[str, Any]:
         """
-        Add a dependency to pixi project.
+        Add conda dependencies (match specs) to pixi project.
 
-        Returns: Operation result
+        Returns: Compact operation result
         """
         working_dir = self._resolve_working_dir(working_dir)
 
@@ -990,14 +991,16 @@ class PixiShellService:
                     "message": f"Directory {working_dir} is not a pixi project",
                 }
 
-            result = self.pixi_project.add_dependency(package, channel, is_dev, working_dir)
+            result = self.pixi_project.add_dependency(
+                packages, channel, feature, platform, working_dir
+            )
 
             self.logging.log_info(
                 "Dependency added",
                 {
-                    "package": package,
+                    "packages": packages,
                     "channel": channel,
-                    "is_dev": is_dev,
+                    "feature": feature,
                     "success": result.success,
                     "working_dir": working_dir,
                 },
@@ -1013,18 +1016,22 @@ class PixiShellService:
             error_msg = f"Failed to add dependency: {str(e)}"
             self.logging.log_error(
                 error_msg,
-                {"package": package, "working_dir": working_dir, "error": str(e)},
+                {"packages": packages, "working_dir": working_dir, "error": str(e)},
             )
 
             return {"success": False, "message": error_msg}
 
     def remove_dependency(
-        self, package: str, is_dev: bool = False, working_dir: str | None = None
+        self,
+        packages: list[str],
+        feature: str | None = None,
+        platform: list[str] | None = None,
+        working_dir: str | None = None,
     ) -> dict[str, Any]:
         """
-        Remove a dependency from pixi project.
+        Remove conda dependencies from pixi project.
 
-        Returns: Operation result
+        Returns: Compact operation result
         """
         working_dir = self._resolve_working_dir(working_dir)
 
@@ -1035,13 +1042,13 @@ class PixiShellService:
                     "message": f"Directory {working_dir} is not a pixi project",
                 }
 
-            result = self.pixi_project.remove_dependency(package, is_dev, working_dir)
+            result = self.pixi_project.remove_dependency(packages, feature, platform, working_dir)
 
             self.logging.log_info(
                 "Dependency removed",
                 {
-                    "package": package,
-                    "is_dev": is_dev,
+                    "packages": packages,
+                    "feature": feature,
                     "success": result.success,
                     "working_dir": working_dir,
                 },
@@ -1057,7 +1064,7 @@ class PixiShellService:
             error_msg = f"Failed to remove dependency: {str(e)}"
             self.logging.log_error(
                 error_msg,
-                {"package": package, "working_dir": working_dir, "error": str(e)},
+                {"packages": packages, "working_dir": working_dir, "error": str(e)},
             )
 
             return {"success": False, "message": error_msg}

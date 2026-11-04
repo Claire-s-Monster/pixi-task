@@ -2,7 +2,9 @@
 Pixi project adapter for managing pixi project information and operations.
 """
 
+import hashlib
 import os
+import re
 import subprocess
 import time
 import toml
@@ -17,6 +19,48 @@ from core.models import (
     _default_pixi_executable,
 )
 from core.ports import PixiProjectPort, LoggingPort, EnvironmentPort
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_REPORT_RE = re.compile(r"\b(Added|Removed)\s+(\S.*)$")
+_TRACKED_FILES = ("pixi.toml", "pyproject.toml", "pixi.lock")
+_STDERR_TAIL_LINES = 8
+
+
+def _valid_specs(packages: object) -> bool:
+    """True for a non-empty list of non-empty specs that cannot be mistaken for flags."""
+    return (
+        isinstance(packages, list)
+        and len(packages) > 0
+        and all(isinstance(p, str) and p.strip() and not p.startswith("-") for p in packages)
+    )
+
+
+def _snapshot_project_files(working_dir: str) -> dict[str, str]:
+    """Map tracked manifest/lock file name -> sha256 for those that exist."""
+    digests: dict[str, str] = {}
+    for name in _TRACKED_FILES:
+        path = Path(working_dir) / name
+        if path.is_file():
+            digests[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digests
+
+
+def _parse_reported_specs(output: str, kind: str) -> list[str]:
+    """Extract specs from pixi's 'Added <spec>' / 'Removed <spec>' lines."""
+    wanted = kind.capitalize()
+    found: list[str] = []
+    for line in _ANSI_RE.sub("", output).splitlines():
+        match = _REPORT_RE.search(line.strip())
+        if match and match.group(1) == wanted:
+            found.append(match.group(2).strip())
+    return found
+
+
+def _tail(text: str) -> str:
+    """Last few non-empty lines of text, ANSI stripped."""
+    lines = [ln for ln in _ANSI_RE.sub("", text).splitlines() if ln.strip()]
+    return "\n".join(lines[-_STDERR_TAIL_LINES:])
 
 
 class PixiProjectAdapter(PixiProjectPort):
@@ -197,121 +241,109 @@ class PixiProjectAdapter(PixiProjectPort):
 
     def add_dependency(
         self,
-        package: str,
+        packages: list[str],
         channel: str | None = None,
-        is_dev: bool = False,
+        feature: str | None = None,
+        platform: list[str] | None = None,
         working_dir: str | None = None,
     ) -> PixiOperationResult:
-        """Add a dependency to pixi project."""
-        start_time = time.time()
-        working_dir = working_dir or os.getcwd()
-
-        try:
-            if not self.is_pixi_project(working_dir):
-                return PixiOperationResult.error_result(
-                    message=f"Not a pixi project: {working_dir}",
-                    operation_type="add_dependency",
-                    execution_time=time.time() - start_time,
-                )
-
-            # Build command
-            command = [_default_pixi_executable(), "add"]
-            if is_dev:
-                command.append("--dev")
-            if channel:
-                command.extend(["--channel", channel])
-            command.append(package)
-
-            # Execute command
-            result = subprocess.run(
-                command, capture_output=True, text=True, cwd=working_dir, timeout=120
-            )
-
-            execution_time = time.time() - start_time
-
-            if result.returncode == 0:
-                return PixiOperationResult.success_result(
-                    message=f"Successfully added dependency: {package}",
-                    operation_type="add_dependency",
-                    execution_time=execution_time,
-                    data={"package": package, "channel": channel, "is_dev": is_dev},
-                )
-            else:
-                return PixiOperationResult.error_result(
-                    message=f"Failed to add dependency: {result.stderr}",
-                    operation_type="add_dependency",
-                    execution_time=execution_time,
-                    error=result.stderr,
-                )
-
-        except Exception as e:
-            execution_time = time.time() - start_time
-            self.logging.log_error(
-                f"Add dependency failed: {str(e)}",
-                {"package": package, "working_dir": working_dir},
-            )
-
-            return PixiOperationResult.error_result(
-                message=f"Error adding dependency: {str(e)}",
-                operation_type="add_dependency",
-                execution_time=execution_time,
-                error=str(e),
-            )
+        """Add conda dependencies (match specs) to a pixi project."""
+        specs = (
+            [f"{channel}::{s}" if channel and "::" not in s else s for s in packages]
+            if _valid_specs(packages)
+            else packages
+        )
+        return self._run_dependency_op("add", packages, specs, feature, platform, working_dir)
 
     def remove_dependency(
-        self, package: str, is_dev: bool = False, working_dir: str | None = None
+        self,
+        packages: list[str],
+        feature: str | None = None,
+        platform: list[str] | None = None,
+        working_dir: str | None = None,
     ) -> PixiOperationResult:
-        """Remove a dependency from pixi project."""
+        """Remove conda dependencies from a pixi project."""
+        return self._run_dependency_op("remove", packages, packages, feature, platform, working_dir)
+
+    def _run_dependency_op(
+        self,
+        verb: str,
+        packages: list[str],
+        specs: list[str],
+        feature: str | None,
+        platform: list[str] | None,
+        working_dir: str | None,
+    ) -> PixiOperationResult:
+        """Run ``pixi add|remove`` and return a compact result (never the solve log)."""
         start_time = time.time()
         working_dir = working_dir or os.getcwd()
+        operation_type = f"{verb}_dependency"
+
+        if not _valid_specs(packages):
+            return PixiOperationResult.error_result(
+                message="packages must be a non-empty list of match specs (no flags)",
+                operation_type=operation_type,
+                execution_time=time.time() - start_time,
+            )
 
         try:
             if not self.is_pixi_project(working_dir):
                 return PixiOperationResult.error_result(
                     message=f"Not a pixi project: {working_dir}",
-                    operation_type="remove_dependency",
+                    operation_type=operation_type,
                     execution_time=time.time() - start_time,
                 )
 
-            # Build command
-            command = [_default_pixi_executable(), "remove"]
-            if is_dev:
-                command.append("--dev")
-            command.append(package)
+            command = [_default_pixi_executable(), verb]
+            if feature:
+                command.extend(["--feature", feature])
+            for plat in platform or []:
+                command.extend(["--platform", plat])
+            command.extend(specs)
 
-            # Execute command
+            before = _snapshot_project_files(working_dir)
             result = subprocess.run(
-                command, capture_output=True, text=True, cwd=working_dir, timeout=60
+                command, capture_output=True, text=True, cwd=working_dir, timeout=300
             )
+            changed = [n for n, digest in _snapshot_project_files(working_dir).items()
+                       if before.get(n) != digest]  # fmt: skip
 
+            done = "added" if verb == "add" else "removed"
+            data: dict = {
+                "packages": list(packages),
+                done: _parse_reported_specs(result.stdout + "\n" + result.stderr, done),
+                "changed_files": changed,
+                "exit_code": result.returncode,
+            }
             execution_time = time.time() - start_time
 
             if result.returncode == 0:
                 return PixiOperationResult.success_result(
-                    message=f"Successfully removed dependency: {package}",
-                    operation_type="remove_dependency",
+                    message=f"Successfully {done} {len(packages)} package(s)",
+                    operation_type=operation_type,
                     execution_time=execution_time,
-                    data={"package": package, "is_dev": is_dev},
+                    data=data,
                 )
-            else:
-                return PixiOperationResult.error_result(
-                    message=f"Failed to remove dependency: {result.stderr}",
-                    operation_type="remove_dependency",
-                    execution_time=execution_time,
-                    error=result.stderr,
-                )
+
+            data["stderr_tail"] = _tail(result.stderr or result.stdout)
+            failed = PixiOperationResult.error_result(
+                message=f"pixi {verb} failed (exit {result.returncode})",
+                operation_type=operation_type,
+                execution_time=execution_time,
+                error=data["stderr_tail"],
+            )
+            failed.data = data
+            return failed
 
         except Exception as e:
-            execution_time = time.time() - start_time
             self.logging.log_error(
-                f"Remove dependency failed: {str(e)}",
-                {"package": package, "working_dir": working_dir},
+                f"{verb} dependency failed: {str(e)}",
+                {"packages": packages, "working_dir": working_dir},
             )
-
             return PixiOperationResult.error_result(
-                message=f"Error removing dependency: {str(e)}",
-                operation_type="remove_dependency",
-                execution_time=execution_time,
+                message=f"Error during pixi {verb}: {str(e)}",
+                operation_type=operation_type,
+                execution_time=time.time() - start_time,
                 error=str(e),
             )
 

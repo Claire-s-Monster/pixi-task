@@ -347,60 +347,76 @@ class LeanMCPInterface:
         # TIER 3: DEPENDENCY MANAGEMENT
         registry["pixi_add_dependency"] = {
             "implementation": self._wrap_tool(self._pixi_add_dependency_impl),
-            "description": "Add a dependency to pixi project",
+            "description": "Add conda dependencies to pixi project (compact result)",
             "domain": "dependency",
-            "complexity": "specialized",
+            "complexity": "extended",
             "schema": {
                 "type": "object",
                 "properties": {
-                    "package": {"type": "string", "description": "Package name to add"},
+                    "packages": {
+                        "type": "array",
+                        "items": {"type": "string", "description": "Conda match spec"},
+                        "minItems": 1,
+                        "description": "Conda match specs to add, e.g. 'xlrd', 'openpyxl>=3.1'",
+                    },
                     "channel": {
                         "type": "string",
-                        "description": "Conda channel (optional)",
+                        "description": "Conda channel (optional); prefixed onto each spec",
                     },
-                    "is_dev": {
-                        "type": "boolean",
-                        "default": False,
-                        "description": "Whether this is a development dependency",
+                    "feature": {
+                        "type": "string",
+                        "description": "Feature to add to (pixi add --feature)",
+                    },
+                    "platform": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Platforms (repeated --platform), e.g. ['linux-64']",
                     },
                     "working_dir": {
                         "type": "string",
                         "description": "Working directory (optional)",
                     },
                 },
-                "required": ["package"],
+                "required": ["packages"],
             },
             "examples": [
-                {"package": "pytest"},
-                {"package": "ruff", "channel": "conda-forge", "is_dev": True},
+                {"packages": ["pytest"]},
+                {"packages": ["xlrd", "openpyxl>=3.1"], "feature": "quality"},
+                {"packages": ["ruff"], "channel": "conda-forge", "platform": ["linux-64"]},
             ],
         }
 
         registry["pixi_remove_dependency"] = {
             "implementation": self._wrap_tool(self._pixi_remove_dependency_impl),
-            "description": "Remove a dependency from pixi project",
+            "description": "Remove conda dependencies from pixi project (compact result)",
             "domain": "dependency",
-            "complexity": "specialized",
+            "complexity": "extended",
             "schema": {
                 "type": "object",
                 "properties": {
-                    "package": {
-                        "type": "string",
-                        "description": "Package name to remove",
+                    "packages": {
+                        "type": "array",
+                        "items": {"type": "string", "description": "Package name/match spec"},
+                        "minItems": 1,
+                        "description": "Packages to remove, e.g. ['xlrd']",
                     },
-                    "is_dev": {
-                        "type": "boolean",
-                        "default": False,
-                        "description": "Whether this is a development dependency",
+                    "feature": {
+                        "type": "string",
+                        "description": "Feature to remove from (pixi remove --feature)",
+                    },
+                    "platform": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Platforms (repeated --platform), e.g. ['linux-64']",
                     },
                     "working_dir": {
                         "type": "string",
                         "description": "Working directory (optional)",
                     },
                 },
-                "required": ["package"],
+                "required": ["packages"],
             },
-            "examples": [{"package": "pytest"}, {"package": "black", "is_dev": True}],
+            "examples": [{"packages": ["pytest"]}, {"packages": ["black"], "feature": "dev"}],
         }
 
         registry["pixi_list_dependencies"] = {
@@ -825,6 +841,16 @@ class LeanMCPInterface:
 
         return wrapper
 
+    def _hidden_tool_names(self) -> list[str]:
+        """Registry tools excluded by expose_complexity_floor (empty when no floor)."""
+        if self.expose_complexity_floor is None:
+            return []
+        return [
+            name
+            for name, info in self.tool_registry.items()
+            if info.get("complexity") not in self.expose_complexity_floor
+        ]
+
     @staticmethod
     def _resolve_aliases(aliases: dict[str, str], parameters: dict) -> dict:
         """Rewrite alias parameter names to their canonical names; raise on conflict."""
@@ -880,6 +906,7 @@ class LeanMCPInterface:
                 "available_tools": tools,
                 "total_tools": len(exposed_items),
                 "filtered_count": len(tools),
+                "hidden_tools": self._hidden_tool_names(),
                 "domains": list(set(info["domain"] for _, info in exposed_items)),
                 "complexity_levels": list(set(info["complexity"] for _, info in exposed_items)),
             }
@@ -1020,7 +1047,7 @@ class LeanMCPInterface:
             COMMON TASKS:
             - Run tests: pixi_run_task(task_name="test")
             - Lint code: pixi_run_task(task_name="lint")
-            - Add package: pixi_add_dependency(package="pytest")
+            - Add package: pixi_add_dependency(packages=["pytest"])
             - Check status: pixi_project_status()
 
             WORKFLOW:
@@ -1108,7 +1135,7 @@ class LeanMCPInterface:
             COMMON OPERATIONS:
             - Run tests: execute_tool("pixi_run_task", {"task_name": "test"})
             - Run lint: execute_tool("pixi_run_task", {"task_name": "lint"})
-            - Add package: execute_tool("pixi_add_dependency", {"package": "pytest"})
+            - Add package: execute_tool("pixi_add_dependency", {"packages": ["pytest"]})
             - Project status: execute_tool("pixi_project_status", {})
             - Build package: execute_tool("rattler_build_build", {"recipe": "recipe"})
               (background; then pixi_wait(job_id) and rattler_build_result(job_id))
@@ -1355,19 +1382,26 @@ class LeanMCPInterface:
 
     def _pixi_add_dependency_impl(
         self,
-        package: str,
+        packages: list[str],
         channel: str | None = None,
-        is_dev: bool = False,
+        feature: str | None = None,
+        platform: list[str] | None = None,
         working_dir: str | None = None,
     ) -> dict[str, Any]:
         return self.business_engine.pixi_service.add_dependency(
-            package, channel, is_dev, working_dir
+            packages, channel, feature, platform, working_dir
         )
 
     def _pixi_remove_dependency_impl(
-        self, package: str, is_dev: bool = False, working_dir: str | None = None
+        self,
+        packages: list[str],
+        feature: str | None = None,
+        platform: list[str] | None = None,
+        working_dir: str | None = None,
     ) -> dict[str, Any]:
-        return self.business_engine.pixi_service.remove_dependency(package, is_dev, working_dir)
+        return self.business_engine.pixi_service.remove_dependency(
+            packages, feature, platform, working_dir
+        )
 
     def _pixi_list_dependencies_impl(self, working_dir: str | None = None) -> dict[str, Any]:
         return self.business_engine.pixi_service.list_dependencies(working_dir)
@@ -1388,12 +1422,8 @@ class LeanMCPInterface:
         except Exception:
             pkg_version = "0.1.0"
 
-        exposed = [
-            name
-            for name, info in self.tool_registry.items()
-            if self.expose_complexity_floor is None
-            or info.get("complexity") in self.expose_complexity_floor
-        ]
+        hidden = self._hidden_tool_names()
+        exposed = [name for name in self.tool_registry if name not in hidden]
 
         return {
             "name": "pixi-task",
@@ -1407,6 +1437,7 @@ class LeanMCPInterface:
             "transport": self.transport,
             "tool_count": len(exposed),
             "registry_size": len(self.tool_registry),
+            "hidden_tools": hidden,
             "protocol_version": "2024-11-05",
         }
 

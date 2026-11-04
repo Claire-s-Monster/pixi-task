@@ -216,22 +216,24 @@ def pixi_project_status(working_dir: str | None = None) -> dict[str, Any]:
 
 @app.tool()
 def pixi_add_dependency(
-    package: str,
+    packages: list[str],
     channel: str | None = None,
-    is_dev: bool = False,
+    feature: str | None = None,
+    platform: list[str] | None = None,
     working_dir: str | None = None,
 ) -> dict[str, Any]:
     """
-    Add a dependency to pixi project.
-    Example: pixi_add_dependency("pytest", "conda-forge")
+    Add conda dependencies (match specs) to pixi project.
+    Example: pixi_add_dependency(["pytest", "openpyxl>=3.1"], feature="dev")
 
     Replaces: Bash("pixi add pytest")
 
-    Provides safe dependency addition with channel specification and development
-    dependency support, ensuring proper project configuration management.
+    Returns a compact result (requested/added specs, changed files, exit code).
     """
     try:
-        return container.pixi_service.add_dependency(package, channel, is_dev, working_dir)
+        return container.pixi_service.add_dependency(
+            packages, channel, feature, platform, working_dir
+        )
     except Exception as e:
         logger.error(f"Error in pixi_add_dependency: {e}")
         return {"success": False, "message": f"Failed to add dependency: {str(e)}"}
@@ -239,16 +241,18 @@ def pixi_add_dependency(
 
 @app.tool()
 def pixi_remove_dependency(
-    package: str, is_dev: bool = False, working_dir: str | None = None
+    packages: list[str],
+    feature: str | None = None,
+    platform: list[str] | None = None,
+    working_dir: str | None = None,
 ) -> dict[str, Any]:
     """
-    Remove a dependency from pixi project.
+    Remove conda dependencies from pixi project.
 
-    Provides safe dependency removal with proper error handling and project
-    state validation, ensuring clean dependency management.
+    Returns a compact result (requested/removed specs, changed files, exit code).
     """
     try:
-        return container.pixi_service.remove_dependency(package, is_dev, working_dir)
+        return container.pixi_service.remove_dependency(packages, feature, platform, working_dir)
     except Exception as e:
         logger.error(f"Error in pixi_remove_dependency: {e}")
         return {"success": False, "message": f"Failed to remove dependency: {str(e)}"}

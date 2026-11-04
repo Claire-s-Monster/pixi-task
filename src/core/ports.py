@@ -187,17 +187,22 @@ class PixiProjectPort(ABC):
     @abstractmethod
     def add_dependency(
         self,
-        package: str,
+        packages: list[str],
         channel: str | None = None,
-        is_dev: bool = False,
+        feature: str | None = None,
+        platform: list[str] | None = None,
         working_dir: str | None = None,
     ) -> PixiOperationResult:
-        """Add a dependency to pixi project."""
+        """Add conda dependencies (match specs) to pixi project."""
         pass
 
     @abstractmethod
     def remove_dependency(
-        self, package: str, is_dev: bool = False, working_dir: str | None = None
+        self,
+        packages: list[str],
+        feature: str | None = None,
+        platform: list[str] | None = None,
+        working_dir: str | None = None,
     ) -> PixiOperationResult:
         """Remove a dependency from pixi project."""
         pass
