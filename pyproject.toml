@@ -222,6 +222,15 @@ fastmcp = "*"
 fastapi = ">=0.115.0"  # HTTP transport for MCP server
 uvicorn = ">=0.31.0"   # ASGI server for HTTP transport
 pydantic = ">=2.10"  # Data validation (required by FastMCP)
+mcp = ">=1.30.0,<2"
+authlib = ">=1.8.0,<2"
+brotli = ">=1.2.1,<2"
+certifi = ">=2026.10.18"
+dnspython = ">=2.9.0,<3"
+joserfc = ">=1.7.6,<2"
+msgpack-python = ">=1.2.3,<2"
+pyjwt = ">=2.15.0,<3"
+urllib3 = ">=2.8.0,<3"
 
 [tool.pixi.pypi-dependencies]
 # Install project in editable mode
@@ -258,7 +267,7 @@ types-toml = ">=0.10.0"  # Mypy stubs for toml
 [tool.pixi.feature.quality-extended.dependencies]
 # Security Scanning (CI Framework proven versions)
 bandit = ">=1.7.0"       # Security linter
-safety = ">=2.3.0,<3.0"  # Dependency vulnerability scanner
+safety = ">=3.8.1"  # Dependency vulnerability scanner
 pip-audit = ">=2.6.0"    # Additional security auditing
 
 # Code Quality Analysis
@@ -268,6 +277,10 @@ vulture = ">=2.7.0"      # Dead code detection
 
 # Git Hooks
 pre-commit = ">=3.0.0"
+setuptools = ">=84.1.0,<85"
+virtualenv = ">=21.14.9,<22"
+gitpython = ">=3.1.62,<4"
+opentelemetry-api = ">=1.45.1,<2"
 
 # TIER 3: CI/CD & Build Tools
 [tool.pixi.feature.quality-ci.dependencies]
@@ -364,10 +377,10 @@ emergency-fix = "pixi run lint-fix && pixi run format && pixi run test"
 
 # Security Scanning (CI Framework patterns)
 security-scan = "pixi run -e quality-extended bandit -r src/ --severity-level high --exclude tests/"
-safety-check = "safety check --ignore=70929 --ignore=70912"  # Common false positives
-pip-audit-scan = "pip-audit --verbose --desc"
-complexity-check = "radon cc src/ --min B"
-dead-code-check = "vulture src/ --min-confidence 80"
+safety-check = "pixi run -e quality-extended safety check --ignore=70929 --ignore=70912"  # Common false positives
+pip-audit-scan = "pixi run -e quality-extended pip-audit --verbose --desc"
+complexity-check = "pixi run -e quality-extended radon cc src/ --min B"
+dead-code-check = "pixi run -e quality-extended vulture src/ --min-confidence 80"
 
 # Static Analysis Suite
 static-analysis = { depends-on = ["security-scan", "safety-check", "complexity-check"] }
