@@ -1,0 +1,23 @@
+# Label Sync - CI Framework (pilot)
+# Creates the labels that Dependabot and the pixi lock refresh request, so they
+# are applied instead of silently dropped. Runs on demand and whenever
+# .github/dependabot.yml (or this file) changes on the default branch.
+
+name: Label Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [development]  # default branch
+    paths:
+      - '.github/dependabot.yml'
+      - '.github/workflows/label-sync.yml'
+
+# Top level grants nothing (OpenSSF Token-Permissions); the job scopes writes.
+permissions: {}
+
+jobs:
+  labels:
+    permissions:
+      issues: write  # gh label create --force
+    uses: Claire-s-Monster/ci-framework/.github/workflows/reusable-label-sync.yml@00822a90f35238d3e0af83385f8bf3a552ab2ef6  # pilot pin; move to release tag once cut
