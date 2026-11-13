@@ -22,7 +22,7 @@ jobs:
       actions: read
       security-events: write
       id-token: write
-    uses: Claire-s-Monster/ci-framework/.github/workflows/reusable-ci.yml@cd96340ffc2e6cf93bff89203338545df8297651  # pilot pin; move to release tag once cut
+    uses: Claire-s-Monster/ci-framework/.github/workflows/reusable-ci.yml@00822a90f35238d3e0af83385f8bf3a552ab2ef6  # pilot pin; move to release tag once cut
     with:
       pixi-environment: "ci"
       python-versions: '["3.12"]'
