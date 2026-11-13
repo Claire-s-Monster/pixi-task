@@ -17,6 +17,10 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     open-pull-requests-limit: 5
+    # explicit labels (created by label-sync.yml); without them Dependabot uses its default 'github_actions' (underscore)
+    labels:
+      - "dependencies"
+      - "github-actions"
     groups:
       ci-framework:
         patterns:
