@@ -218,7 +218,7 @@ env = { PYTHONNOUSERSITE = "1" }
 python = ">=3.12,<3.14"  # Pin range to avoid surprise updates (currently resolving to 3.13.5)
 hatchling = ">=1.18.0"  # Required for editable installs
 fastmcp = "*"
-fastapi = ">=0.115.0"  # HTTP transport for MCP server
+fastapi = ">=0.115.0,<0.156"  # <0.156: fastapi 0.156.4+ depends on httpx2/httpcore2, which crash safety check (authlib)
 uvicorn = ">=0.31.0"   # ASGI server for HTTP transport
 pydantic = ">=2.10"  # Data validation (required by FastMCP)
 mcp = ">=1.30.0,<2"
